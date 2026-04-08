@@ -77,11 +77,10 @@ export default function SettingsModal({
 
   async function testConnection() {
     if (!sheet.sheetId) { setConnStatus('error'); setConnMsg('Sheet ID를 먼저 입력해주세요.'); return; }
-    if (!sheet.apiKey) { setConnStatus('error'); setConnMsg('API 키를 먼저 입력해주세요.'); return; }
     setConnStatus('testing'); setConnMsg('');
     try {
       const { testSheetsConnection } = await import('@/lib/googleSheetsRepository');
-      const title = await testSheetsConnection(sheet.sheetId, sheet.apiKey);
+      const title = await testSheetsConnection(sheet.sheetId);
       setConnStatus('ok');
       setConnMsg(`연결 성공: "${title}"`);
     } catch (e) {
@@ -91,11 +90,11 @@ export default function SettingsModal({
   }
 
   async function initSheets() {
-    if (!sheet.sheetId || !sheet.apiKey) return;
+    if (!sheet.sheetId) return;
     setConnStatus('testing'); setConnMsg('');
     try {
       const { initializeSheets } = await import('@/lib/googleSheetsRepository');
-      const result = await initializeSheets({ sheetId: sheet.sheetId, apiKey: sheet.apiKey, sheetName: sheet.sheetName });
+      const result = await initializeSheets({ sheetId: sheet.sheetId });
       setConnStatus('ok');
       setConnMsg(
         result.created.length > 0
@@ -407,17 +406,6 @@ export default function SettingsModal({
                       />
                       {sheet.sheetId && <p className="text-xs text-blue-500 mt-1">Sheet ID: <span className="font-mono">{sheet.sheetId}</span></p>}
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Google API 키</label>
-                      <input
-                        type="password"
-                        value={sheet.apiKey}
-                        onChange={e => setSheetField('apiKey', e.target.value)}
-                        placeholder="AIza..."
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                      />
-                    </div>
-
                     {/* 연결 테스트 + 시트 초기화 */}
                     <div className="flex gap-2">
                       <button
@@ -433,7 +421,7 @@ export default function SettingsModal({
                       </button>
                       <button
                         onClick={initSheets}
-                        disabled={connStatus === 'testing' || !sheet.sheetId || !sheet.apiKey}
+                        disabled={connStatus === 'testing' || !sheet.sheetId}
                         className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                       >
                         <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">

@@ -2,9 +2,8 @@
 
 export interface SheetSettings {
   enabled: boolean;
-  sheetId: string;       // Google Sheet ID (extracted from URL or entered directly)
-  sheetName: string;     // Tab name inside the spreadsheet
-  apiKey: string;        // Google API key (public read-only access)
+  sheetId: string;    // Google Sheet ID (URL 또는 ID 직접 입력)
+  sheetName: string;  // 기준 탭명 (미사용, 구조 보존)
 }
 
 export interface AppSettings {
@@ -23,7 +22,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     enabled: false,
     sheetId: '',
     sheetName: '예약',
-    apiKey: '',
   },
 };
 
