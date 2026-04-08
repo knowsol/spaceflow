@@ -46,7 +46,7 @@ const TODAY = formatDate(new Date());
 const TIME_OPTIONS = generateTimeOptions(8, 22);
 
 type FormErrors = Partial<
-  Record<keyof ReservationFormData | 'repeat_days' | 'repeat_end_date' | 'changed_by', string>
+  Record<keyof ReservationFormData | 'repeat_days' | 'repeat_end_date', string>
 >;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -104,7 +104,6 @@ export default function ReservationModal(props: Props) {
   const [form, setForm] = useState<ReservationFormData>(() =>
     isEdit ? reservationToForm(editTarget!) : defaultForm(props.initialData)
   );
-  const [changedBy, setChangedBy] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [conflicts, setConflicts] = useState<{ dates: string[]; items: Reservation[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -149,7 +148,6 @@ export default function ReservationModal(props: Props) {
       if (form.repeat_type === 'weekly' && form.repeat_days.length === 0)
         e.repeat_days = '반복 요일을 하나 이상 선택해주세요';
     }
-    if (!changedBy.trim()) e.changed_by = isEdit ? '수정자명을 입력해주세요' : '등록자명을 입력해주세요';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -194,7 +192,7 @@ export default function ReservationModal(props: Props) {
           repeat_start_date: form.repeat_type !== 'none' ? form.repeat_start_date : null,
           repeat_end_date: form.repeat_type !== 'none' ? form.repeat_end_date : null,
         },
-        changedBy.trim()
+        form.reserver_name.trim()
       );
       setSubmitting(false);
       return;
@@ -234,7 +232,7 @@ export default function ReservationModal(props: Props) {
         })
       );
 
-      props.onSubmit(newItems, changedBy.trim());
+      props.onSubmit(newItems, form.reserver_name.trim());
     }
 
     setSubmitting(false);
@@ -415,27 +413,6 @@ export default function ReservationModal(props: Props) {
               {repeatDates.length}개의 예약이 생성됩니다 ({form.repeat_start_date} ~ {form.repeat_end_date})
             </div>
           )}
-
-          {/* ── Changed-by field ──────────────────────────────────────────── */}
-          <div className="border-t border-gray-100 pt-4">
-            <Field
-              label={isEdit ? '수정자명' : '등록자명'}
-              required
-              error={errors.changed_by}
-              hint={isEdit ? '변경 이력에 기록됩니다' : '등록 이력에 기록됩니다'}
-            >
-              <input
-                type="text"
-                placeholder="이름"
-                value={changedBy}
-                onChange={e => {
-                  setChangedBy(e.target.value);
-                  if (errors.changed_by) setErrors(prev => ({ ...prev, changed_by: undefined }));
-                }}
-                className={inputCls(!!errors.changed_by)}
-              />
-            </Field>
-          </div>
 
           {/* Conflict warning */}
           {conflicts && conflicts.dates.length > 0 && (
