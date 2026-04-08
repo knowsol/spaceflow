@@ -45,11 +45,22 @@ export function useReservations() {
     setIsLoading(true);
     const repo = getRepository();
     (async () => {
-      const [res, rm, hist] = await Promise.all([
+      let [res, rm, hist] = await Promise.all([
         repo.getReservations(),
         repo.getRooms(),
         repo.getHistory(),
       ]);
+
+      // 회의실이 하나도 없으면 기본 회의실 자동 생성
+      if (rm.length === 0) {
+        try {
+          const defaultRoom = await repo.addRoom('회의실');
+          rm = [defaultRoom];
+        } catch {
+          // 자동 생성 실패 시 무시 (오프라인 등)
+        }
+      }
+
       setReservations(res);
       setRooms(rm);
       setHistory(hist);

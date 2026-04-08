@@ -11,8 +11,21 @@ interface Props {
 export default function RoomTabs({ rooms, selectedRoomId, onSelect }: Props) {
   const activeRooms = rooms.filter(r => r.is_active);
 
-  if (activeRooms.length <= 1) return null; // 방이 1개 이하면 탭 불필요
+  // 방이 없으면 아무것도 표시하지 않음
+  if (activeRooms.length === 0) return null;
 
+  // 방이 1개면 탭 클릭 불필요 — 이름 뱃지만 표시
+  if (activeRooms.length === 1) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="px-4 py-2 text-sm font-medium rounded-lg bg-gray-900 text-white whitespace-nowrap">
+          {activeRooms[0].room_name}
+        </span>
+      </div>
+    );
+  }
+
+  // 방이 2개 이상이면 선택 가능한 탭 표시
   return (
     <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
       {activeRooms.map(room => {
