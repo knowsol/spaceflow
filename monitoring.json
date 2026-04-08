@@ -1,0 +1,26 @@
+﻿{
+    "workspace":  "meeting-room",
+    "pending_registration":  true,
+    "monitors":  [
+                     {
+                         "url":  "http://192.168.0.200:3006",
+                         "name":  "meeting-room-web",
+                         "interval":  60,
+                         "type":  "http"
+                     },
+                     {
+                         "url":  "http://192.168.0.200:4006/health",
+                         "name":  "meeting-room-api",
+                         "interval":  60,
+                         "type":  "http"
+                     },
+                     {
+                         "url":  "http://192.168.0.200:8086",
+                         "name":  "meeting-room-admin",
+                         "interval":  60,
+                         "type":  "http"
+                     }
+                 ],
+    "uptime_kuma_url":  "http://192.168.0.200:3200",
+    "generated_at":  "2026-04-08 12:23:10"
+}

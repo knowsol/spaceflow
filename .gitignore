@@ -1,0 +1,29 @@
+﻿# --- Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- Next.js build
+.next/
+out/
+
+# --- Environment (NEVER commit)
+.env
+.env.local
+.env.*.local
+
+# --- Build output
+dist/
+build/
+
+# --- Logs
+*.log
+logs/
+
+# --- OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
