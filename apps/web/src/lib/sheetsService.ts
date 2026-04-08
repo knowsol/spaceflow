@@ -240,6 +240,58 @@ export async function cancelReservation(sheetId: string, id: string, cancelled_b
   await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
 }
 
+// ─── Settings ──────────────────────────────────────────────────────────────────
+
+export interface SheetSettingsData {
+  roomName: string;
+  workDays: number[];
+}
+
+export async function getSheetSettings(sheetId: string): Promise<SheetSettingsData | null> {
+  try {
+    const rows = await readSheet(sheetId, SHEET_NAMES.settings);
+    if (rows.length === 0) return null;
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      if (row[0]) map[row[0]] = row[1] ?? '';
+    }
+    if (!map.roomName && !map.workDays) return null;
+    return {
+      roomName: map.roomName ?? '',
+      workDays: map.workDays ? map.workDays.split(',').map(Number).filter(n => !isNaN(n)) : [1,2,3,4,5],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveSheetSettings(sheetId: string, data: SheetSettingsData): Promise<void> {
+  const { sheets } = getSheets(sheetId);
+  const rows = await readSheet(sheetId, SHEET_NAMES.settings);
+
+  const entries: Record<string, string> = {
+    roomName: data.roomName,
+    workDays: data.workDays.join(','),
+  };
+
+  for (const [key, value] of Object.entries(entries)) {
+    const idx = rows.findIndex(r => r[0] === key);
+    if (idx >= 0) {
+      // update existing row
+      const sheetRow = idx + 2; // +1 for header, +1 for 1-based
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${SHEET_NAMES.settings}!A${sheetRow}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [[key, value]] },
+      });
+    } else {
+      // append new row
+      await appendRow(sheetId, SHEET_NAMES.settings, [key, value]);
+    }
+  }
+}
+
 // ─── History ───────────────────────────────────────────────────────────────────
 
 export async function getHistory(sheetId: string, reservationId?: string): Promise<ReservationHistory[]> {

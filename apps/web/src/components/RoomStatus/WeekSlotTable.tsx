@@ -135,7 +135,7 @@ export default function WeekSlotTable({
           <h2 className="text-sm font-semibold text-gray-900">{roomName}</h2>
           <p className="text-xs text-gray-400 mt-0.5">{weekLabel}</p>
         </div>
-        <span className="text-xs text-gray-400">1시간 단위 표시 · 10분 단위 예약</span>
+        <span className="text-xs text-gray-400">1시간 단위 표시 · 30분 단위 예약</span>
       </div>
 
       <div className="overflow-x-auto">

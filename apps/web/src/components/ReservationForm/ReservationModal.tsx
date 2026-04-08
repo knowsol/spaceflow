@@ -7,6 +7,8 @@ import {
   generateRepeatDates,
   formatDate,
   generateTimeOptions,
+  timeToMinutes,
+  minutesToTime,
 } from '@/lib/reservationLogic';
 import TimeSelector from './TimeSelector';
 import RepeatOptions, { RepeatConfig } from './RepeatOptions';
@@ -44,6 +46,13 @@ type Props = (CreateMode | EditMode) & {
 
 const TODAY = formatDate(new Date());
 const TIME_OPTIONS = generateTimeOptions(8, 22);
+
+const DURATION_PRESETS = [
+  { label: '30분', minutes: 30 },
+  { label: '1시간', minutes: 60 },
+  { label: '2시간', minutes: 120 },
+  { label: '3시간', minutes: 180 },
+];
 
 type FormErrors = Partial<
   Record<keyof ReservationFormData | 'repeat_days' | 'repeat_end_date', string>
@@ -364,25 +373,59 @@ export default function ReservationModal(props: Props) {
 
           {/* Time selectors */}
           {!form.all_day && (
-            <div className="grid grid-cols-2 gap-3">
-              <TimeSelector
-                label="시작 시간 *"
-                value={form.start_time}
-                onChange={v => {
-                  const newEnd =
-                    form.end_time <= v
-                      ? TIME_OPTIONS.find(t => t > v) ?? '22:00'
-                      : form.end_time;
-                  update({ start_time: v, end_time: newEnd });
-                }}
-              />
-              <TimeSelector
-                label="종료 시간 *"
-                value={form.end_time}
-                onChange={v => update({ end_time: v })}
-                minTime={form.start_time}
-                error={errors.end_time}
-              />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <TimeSelector
+                  label="시작 시간 *"
+                  value={form.start_time}
+                  onChange={v => {
+                    const newEnd =
+                      form.end_time <= v
+                        ? TIME_OPTIONS.find(t => t > v) ?? '22:00'
+                        : form.end_time;
+                    update({ start_time: v, end_time: newEnd });
+                  }}
+                />
+                <TimeSelector
+                  label="종료 시간 *"
+                  value={form.end_time}
+                  onChange={v => update({ end_time: v })}
+                  minTime={form.start_time}
+                  error={errors.end_time}
+                />
+              </div>
+              {/* Duration quick-select */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400 flex-shrink-0">이용 시간</span>
+                {DURATION_PRESETS.map(({ label, minutes }) => {
+                  const targetEnd = minutesToTime(
+                    Math.min(timeToMinutes(form.start_time) + minutes, 22 * 60)
+                  );
+                  const isActive =
+                    TIME_OPTIONS.includes(targetEnd) &&
+                    form.end_time === targetEnd;
+                  return (
+                    <button
+                      key={minutes}
+                      type="button"
+                      onClick={() => {
+                        const endTime = TIME_OPTIONS.includes(targetEnd)
+                          ? targetEnd
+                          : TIME_OPTIONS.filter(t => t > form.start_time).at(-1) ?? '22:00';
+                        update({ end_time: endTime });
+                      }}
+                      className={[
+                        'px-2.5 py-1 text-xs rounded-lg border transition-colors',
+                        isActive
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600',
+                      ].join(' ')}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

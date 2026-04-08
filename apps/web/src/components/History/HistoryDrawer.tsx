@@ -52,7 +52,9 @@ export default function HistoryDrawer({ history, onClose }: Props) {
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
+    const cutoff = Date.now() - 12 * 60 * 60 * 1000; // 12시간 전
     return history.filter(h => {
+      if (new Date(h.changed_at).getTime() < cutoff) return false;
       if (filterAction !== 'all' && h.action !== filterAction) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -78,8 +80,8 @@ export default function HistoryDrawer({ history, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">변경 이력</h2>
-            <p className="text-xs text-gray-400 mt-0.5">총 {filtered.length}건</p>
+            <h2 className="text-base font-semibold text-gray-900">최근 변경이력</h2>
+            <p className="text-xs text-gray-400 mt-0.5">최근 12시간 · {filtered.length}건</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">

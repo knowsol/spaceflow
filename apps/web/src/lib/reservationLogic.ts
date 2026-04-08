@@ -41,11 +41,11 @@ export function timesOverlap(s1: string, e1: string, s2: string, e2: string): bo
   return timeToMinutes(s1) < timeToMinutes(e2) && timeToMinutes(e1) > timeToMinutes(s2);
 }
 
-/** Generate 10-minute time option strings: "08:00", "08:10", … "22:00" */
+/** Generate 30-minute time option strings: "08:00", "08:30", … "22:00" */
 export function generateTimeOptions(startHour = 8, endHour = 22): string[] {
   const opts: string[] = [];
   for (let h = startHour; h <= endHour; h++) {
-    for (let m = 0; m < 60; m += 10) {
+    for (let m = 0; m < 60; m += 30) {
       if (h === endHour && m > 0) break;
       opts.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
     }

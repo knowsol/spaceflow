@@ -6,12 +6,14 @@
 import type { Reservation, Room, ReservationHistory } from './types';
 
 export const SHEET_NAMES = {
+  settings: 'settings',
   rooms: 'rooms',
   reservations: 'reservations',
   history: 'history',
 } as const;
 
 export const SHEET_HEADERS: Record<keyof typeof SHEET_NAMES, string[]> = {
+  settings: ['key', 'value'],
   rooms: ['room_id', 'room_name', 'is_active', 'sort_order', 'created_at'],
   reservations: [
     'reservation_id', 'room_id', 'title', 'reserver_name', 'purpose',
