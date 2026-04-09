@@ -69,13 +69,15 @@ export function serializeRoom(r: Room): string[] {
     r.is_active ? 'TRUE' : 'FALSE',
     String(r.sort_order),
     new Date().toISOString(),
+    r.color || '#6d28d9',
   ];
 }
 
 export function deserializeRoom(row: string[]): Room {
-  const [room_id, room_name, is_active, sort_order] = row;
+  const [room_id, room_name, is_active, sort_order, , color] = row;
   return {
     room_id, room_name,
+    color: (color && color.startsWith('#')) ? color : '#6d28d9',
     is_active: is_active === 'TRUE',
     sort_order: parseInt(sort_order || '0', 10),
   };

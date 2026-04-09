@@ -35,21 +35,21 @@ function ResBlock({ reservation: r, onEdit, onCancel }: BlockProps) {
 
   return (
     <div
-      className="absolute left-0.5 right-0.5 rounded overflow-hidden group/res cursor-pointer z-10 transition-opacity hover:opacity-90"
+      className="absolute left-0.5 right-0.5 rounded-sm overflow-hidden group/res cursor-pointer z-10 transition-opacity hover:opacity-90"
       style={{ top, height }}
       onClick={() => onEdit(r)}
     >
-      <div className={`h-full px-1.5 py-0.5 flex flex-col ${isRepeat ? 'bg-indigo-100 border border-indigo-200' : 'bg-blue-100 border border-blue-200'}`}>
-        <p className={`font-semibold truncate leading-tight ${isShort ? 'text-[10px]' : 'text-xs'} ${isRepeat ? 'text-indigo-900' : 'text-blue-900'}`}>
+      <div className={`h-full px-1.5 py-0.5 flex flex-col ${isRepeat ? 'bg-[var(--accent-light)] border border-[var(--accent-border)]' : 'bg-[var(--accent)] border border-[var(--accent)]'}`}>
+        <p className={`font-semibold truncate leading-tight ${isShort ? 'text-[10px]' : 'text-xs'} ${isRepeat ? 'text-[var(--accent)]' : 'text-white'}`}>
           {r.title}
         </p>
         {!isShort && (
-          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-indigo-600' : 'text-blue-600'}`}>
+          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-[var(--accent-mid)]' : 'text-gray-300'}`}>
             {r.start_time}–{r.end_time}
           </p>
         )}
         {!isShort && height >= 58 && r.reserver_name && (
-          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-indigo-500' : 'text-blue-500'}`}>
+          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-[var(--accent-mid)]' : 'text-gray-300'}`}>
             {r.reserver_name}
           </p>
         )}
@@ -73,6 +73,9 @@ interface Props {
   reservations: Reservation[];
   roomName?: string;
   workDays?: number[];   // 0=일~6=토, undefined = 모두 표시
+  headerActions?: React.ReactNode;
+  onPrevWeek: () => void;
+  onNextWeek: () => void;
   onReserveSlot: (date: string, hour: number) => void;
   onEditReservation: (reservation: Reservation) => void;
   onCancelReservation: (id: string) => void;
@@ -83,6 +86,9 @@ export default function WeekSlotTable({
   reservations,
   roomName = '회의실 현황',
   workDays,
+  headerActions,
+  onPrevWeek,
+  onNextWeek,
   onReserveSlot,
   onEditReservation,
   onCancelReservation,
@@ -121,24 +127,33 @@ export default function WeekSlotTable({
     const visible = dayData.length > 0 ? dayData : allDayData;
     const s = parseDate(visible[0].date);
     const e = parseDate(visible[visible.length - 1].date);
-    if (s.getMonth() === e.getMonth()) {
-      return `${s.getMonth() + 1}월 ${s.getDate()}일 – ${e.getDate()}일`;
-    }
-    return `${s.getMonth() + 1}월 ${s.getDate()}일 – ${e.getMonth() + 1}월 ${e.getDate()}일`;
+    const fmt = (d: Date) =>
+      `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    return `${fmt(s)} - ${fmt(e)}`;
   })();
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white overflow-hidden h-full flex flex-col">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+      <div className="pb-2 border-b border-gray-100 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">{roomName}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{weekLabel}</p>
+          <div className="flex items-center gap-1">
+            <button onClick={onPrevWeek} className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-sm transition-colors flex-shrink-0">
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" /></svg>
+            </button>
+            <span className="text-sm font-semibold text-gray-900 inline-block w-28 text-center">{weekLabel}</span>
+            <button onClick={onNextWeek} className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-sm transition-colors flex-shrink-0">
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" /></svg>
+            </button>
+          </div>
         </div>
-        <span className="text-xs text-gray-400">1시간 단위 표시 · 30분 단위 예약</span>
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:inline text-xs text-gray-400">1시간 단위 표시 · 30분 단위 예약</span>
+          {headerActions}
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
         {/* Day header row */}
         <div
           className="grid border-b border-gray-100 bg-gray-50 sticky top-0 z-30"
@@ -153,13 +168,13 @@ export default function WeekSlotTable({
             return (
               <div
                 key={date}
-                className={`text-center py-2.5 border-l border-gray-100 ${isToday ? 'bg-blue-50' : ''}`}
+                className={`text-center py-2.5 border-l border-gray-100 ${isToday ? 'bg-gray-50' : ''}`}
               >
-                <p className={`text-[10px] font-medium ${isSun ? 'text-red-400' : isSat ? 'text-blue-400' : 'text-gray-400'}`}>
+                <p className={`text-[10px] font-medium ${isSun ? 'text-red-400' : 'text-gray-400'}`}>
                   {DOW_LABEL[dow]}
                 </p>
-                <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center ${isToday ? 'bg-blue-600' : ''}`}>
-                  <span className={`text-sm font-semibold ${isToday ? 'text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}>
+                <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center ${isToday ? 'bg-[var(--accent)]' : ''}`}>
+                  <span className={`text-sm font-semibold ${isToday ? 'text-white' : isSun ? 'text-red-500' : isSat ? 'text-gray-500' : 'text-gray-700'}`}>
                     {d.getDate()}
                   </span>
                 </div>
@@ -183,7 +198,7 @@ export default function WeekSlotTable({
                   <div
                     key={r.reservation_id}
                     onClick={() => onEditReservation(r)}
-                    className="bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-800 truncate cursor-pointer hover:bg-amber-200 transition-colors"
+                    className="bg-amber-100 border border-amber-200 rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-amber-800 truncate cursor-pointer hover:bg-amber-200 transition-colors"
                   >
                     {r.title}
                   </div>
@@ -194,7 +209,7 @@ export default function WeekSlotTable({
         )}
 
         {/* Time grid */}
-        <div className="overflow-y-auto" style={{ maxHeight: '560px' }}>
+        <div className="overflow-y-auto flex-1">
           <div className="flex" style={{ minWidth: `${48 + colCount * 80}px` }}>
             {/* Time labels */}
             <div className="flex-shrink-0 w-12 border-r border-gray-100">
@@ -219,7 +234,7 @@ export default function WeekSlotTable({
                   <div
                     key={date}
                     className={`relative border-l border-gray-100 ${
-                      isToday ? 'bg-blue-50/20' : isSat || isSun ? 'bg-gray-50/60' : ''
+                      isToday ? 'bg-gray-50/60' : isSat || isSun ? 'bg-gray-50/60' : ''
                     }`}
                     style={{ height: TOTAL_H }}
                   >
@@ -236,7 +251,7 @@ export default function WeekSlotTable({
                     {HOURS.map(h => (
                       <button
                         key={h}
-                        className="absolute w-full hover:bg-blue-100/40 transition-colors z-0"
+                        className="absolute w-full hover:bg-gray-50 transition-colors z-0"
                         style={{ top: (h - START_HOUR) * CELL_H, height: CELL_H }}
                         onClick={() => onReserveSlot(date, h)}
                         title={`${pad(h)}:00 예약`}

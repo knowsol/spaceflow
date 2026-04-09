@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sheetId, name } = await req.json() as { sheetId?: string; name?: string };
+    const { sheetId, name, color } = await req.json() as { sheetId?: string; name?: string; color?: string };
     if (!sheetId || !name) return NextResponse.json({ error: 'sheetId, name 필요' }, { status: 400 });
-    const room = await svc.addRoom(sheetId, name);
+    const room = await svc.addRoom(sheetId, name, color);
     return NextResponse.json(room);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

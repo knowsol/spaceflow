@@ -2,7 +2,7 @@ import { Reservation, Room } from './types';
 import { formatDate } from './reservationLogic';
 
 export const ROOMS: Room[] = [
-  { room_id: 'room-1', room_name: '회의실', is_active: true, sort_order: 1 },
+  { room_id: 'room-1', room_name: '회의실', color: '#6d28d9', is_active: true, sort_order: 1 },
 ];
 
 function relDate(offsetDays: number): string {

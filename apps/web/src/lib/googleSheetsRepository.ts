@@ -82,15 +82,29 @@ export function createGoogleSheetsRepository(config: { sheetId: string }): IRese
       });
     },
 
+    async cancelReservationsByGroup(groupId, cancelled_by) {
+      await api(`/reservations/group/${groupId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ sheetId, cancelled_by }),
+      });
+    },
+
+    async updateReservationsByGroup(groupId, data, changed_by) {
+      await api(`/reservations/group/${groupId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ sheetId, changed_by, ...data }),
+      });
+    },
+
     async getHistory(reservationId?) {
       const qs = reservationId ? `&reservationId=${reservationId}` : '';
       return api(`/history?sheetId=${sheetId}${qs}`);
     },
 
-    async addRoom(name) {
+    async addRoom(name, color = '#6d28d9') {
       return api<Room>('/rooms', {
         method: 'POST',
-        body: JSON.stringify({ sheetId, name }),
+        body: JSON.stringify({ sheetId, name, color }),
       });
     },
 

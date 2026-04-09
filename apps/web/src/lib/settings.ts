@@ -6,18 +6,24 @@ export interface SheetSettings {
   sheetName: string;  // 기준 탭명 (미사용, 구조 보존)
 }
 
+export type LayoutWidth = 'full' | number; // 'full' | px 숫자 (예: 1000, 1200, 1400)
+
 export interface AppSettings {
-  roomName: string;
   /** 근무 요일: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토. 기본값: 월~금 */
   workDays: number[];
+  /** 반복 일정 최대 생성 건수. 기본값: 100 */
+  repeatMaxCount: number;
+  /** PC 화면 가로 최대 너비. 기본값: 'full' */
+  layoutWidth: LayoutWidth;
   sheet: SheetSettings;
 }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  roomName: '공용 회의실 A',
   workDays: [1, 2, 3, 4, 5],
+  repeatMaxCount: 100,
+  layoutWidth: 'full',
   sheet: {
     enabled: false,
     sheetId: '',
@@ -40,8 +46,14 @@ export function loadSettings(): AppSettings {
       workDays: Array.isArray(parsed.workDays) && parsed.workDays.length > 0
         ? parsed.workDays
         : DEFAULT_SETTINGS.workDays,
+      repeatMaxCount: typeof parsed.repeatMaxCount === 'number' && parsed.repeatMaxCount >= 1
+        ? parsed.repeatMaxCount
+        : DEFAULT_SETTINGS.repeatMaxCount,
+      layoutWidth: parsed.layoutWidth === 'full' || typeof parsed.layoutWidth === 'number'
+        ? parsed.layoutWidth
+        : DEFAULT_SETTINGS.layoutWidth,
       sheet: { ...DEFAULT_SETTINGS.sheet, ...(parsed.sheet ?? {}) },
-    };
+    } as AppSettings;
   } catch {
     return { ...DEFAULT_SETTINGS, sheet: { ...DEFAULT_SETTINGS.sheet } };
   }

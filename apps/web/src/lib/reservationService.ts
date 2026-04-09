@@ -24,11 +24,17 @@ export interface IReservationRepository {
     changed_by: string
   ): Promise<Reservation>;
   cancelReservation(id: string, cancelled_by: string): Promise<void>;
+  cancelReservationsByGroup(groupId: string, cancelled_by: string): Promise<void>;
+  updateReservationsByGroup(
+    groupId: string,
+    data: Partial<Omit<Reservation, 'reservation_id' | 'created_at' | 'date'>>,
+    changed_by: string
+  ): Promise<void>;
   getHistory(reservationId?: string): Promise<ReservationHistory[]>;
 
   // ── Rooms ─────────────────────────────────────────────────────────────────
   getRooms(): Promise<Room[]>;
-  addRoom(name: string): Promise<Room>;
+  addRoom(name: string, color?: string): Promise<Room>;
   updateRoom(id: string, data: Partial<Omit<Room, 'room_id'>>): Promise<Room>;
   deleteRoom(id: string): Promise<void>;
 }
@@ -157,6 +163,26 @@ export function createMockRepository(
       logEntry(history, 'cancel', cancelled_by, before, after);
     },
 
+    async cancelReservationsByGroup(groupId, cancelled_by) {
+      const now = new Date().toISOString();
+      const targets = store.filter(r => r.repeat_group_id === groupId && r.status !== 'cancelled');
+      for (const before of targets) {
+        const after: Reservation = { ...before, status: 'cancelled', updated_at: now };
+        store = store.map(r => (r.reservation_id === before.reservation_id ? after : r));
+        logEntry(history, 'cancel', cancelled_by, before, after);
+      }
+    },
+
+    async updateReservationsByGroup(groupId, data, changed_by) {
+      const now = new Date().toISOString();
+      const targets = store.filter(r => r.repeat_group_id === groupId && r.status !== 'cancelled');
+      for (const before of targets) {
+        const after: Reservation = { ...before, ...data, updated_at: now };
+        store = store.map(r => (r.reservation_id === before.reservation_id ? after : r));
+        logEntry(history, 'update', changed_by, before, after);
+      }
+    },
+
     async getHistory(reservationId?) {
       const entries = reservationId
         ? history.filter(h => h.reservation_id === reservationId)
@@ -169,11 +195,12 @@ export function createMockRepository(
       return [...rooms].sort((a, b) => a.sort_order - b.sort_order);
     },
 
-    async addRoom(name) {
+    async addRoom(name, color = '#6d28d9') {
       const maxOrder = rooms.reduce((m, r) => Math.max(m, r.sort_order), 0);
       const newRoom: Room = {
         room_id: makeId('room'),
         room_name: name.trim(),
+        color,
         is_active: true,
         sort_order: maxOrder + 1,
       };

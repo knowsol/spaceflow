@@ -45,26 +45,36 @@ export function useReservations() {
     setIsLoading(true);
     const repo = getRepository();
     (async () => {
-      let [res, rm, hist] = await Promise.all([
-        repo.getReservations(),
-        repo.getRooms(),
-        repo.getHistory(),
-      ]);
+      try {
+        let [res, rm, hist] = await Promise.all([
+          repo.getReservations(),
+          repo.getRooms(),
+          repo.getHistory(),
+        ]);
 
-      // 회의실이 하나도 없으면 기본 회의실 자동 생성
-      if (rm.length === 0) {
-        try {
-          const defaultRoom = await repo.addRoom('회의실');
-          rm = [defaultRoom];
-        } catch {
-          // 자동 생성 실패 시 무시 (오프라인 등)
+        // 회의실이 하나도 없으면 기본 회의실 자동 생성 (mock 모드 전용)
+        // Google Sheets 모드에서는 자동 생성 안함 — 사용자가 설정에서 직접 추가해야 함
+        if (rm.length === 0) {
+          const s = loadSettings();
+          const isSheetsMode = s.sheet.enabled && !!s.sheet.sheetId;
+          if (!isSheetsMode) {
+            try {
+              const defaultRoom = await repo.addRoom('회의실');
+              rm = [defaultRoom];
+            } catch {
+              // 자동 생성 실패 시 무시 (오프라인 등)
+            }
+          }
         }
-      }
 
-      setReservations(res);
-      setRooms(rm);
-      setHistory(hist);
-      setIsLoading(false);
+        setReservations(res);
+        setRooms(rm);
+        setHistory(hist);
+      } catch {
+        // 데이터 로드 실패 시에도 로딩 해제 (무한 로딩 방지)
+      } finally {
+        setIsLoading(false);
+      }
     })();
   }, [repoKey]);
 
@@ -82,7 +92,7 @@ export function useReservations() {
     ) => {
       const added = await getRepository().addReservations(items, created_by);
       setReservations(prev => [...prev, ...added]);
-      await refreshHistory();
+      try { await refreshHistory(); } catch { }
       return added;
     },
     [refreshHistory]
@@ -96,7 +106,7 @@ export function useReservations() {
     ) => {
       const updated = await getRepository().updateReservation(id, data, changed_by);
       setReservations(prev => prev.map(r => (r.reservation_id === id ? updated : r)));
-      await refreshHistory();
+      try { await refreshHistory(); } catch { }
       return updated;
     },
     [refreshHistory]
@@ -108,15 +118,45 @@ export function useReservations() {
       setReservations(prev =>
         prev.map(r => (r.reservation_id === id ? { ...r, status: 'cancelled' as const } : r))
       );
-      await refreshHistory();
+      try { await refreshHistory(); } catch { }
+    },
+    [refreshHistory]
+  );
+
+  const cancelReservationsByGroup = useCallback(
+    async (groupId: string, cancelled_by = '사용자') => {
+      await getRepository().cancelReservationsByGroup(groupId, cancelled_by);
+      setReservations(prev =>
+        prev.map(r => (r.repeat_group_id === groupId ? { ...r, status: 'cancelled' as const } : r))
+      );
+      try { await refreshHistory(); } catch { }
+    },
+    [refreshHistory]
+  );
+
+  const updateReservationsByGroup = useCallback(
+    async (
+      groupId: string,
+      data: Partial<Omit<import('@/lib/types').Reservation, 'reservation_id' | 'created_at' | 'date'>>,
+      changed_by: string
+    ) => {
+      await getRepository().updateReservationsByGroup(groupId, data, changed_by);
+      setReservations(prev =>
+        prev.map(r =>
+          r.repeat_group_id === groupId && r.status !== 'cancelled'
+            ? { ...r, ...data, updated_at: new Date().toISOString() }
+            : r
+        )
+      );
+      try { await refreshHistory(); } catch { }
     },
     [refreshHistory]
   );
 
   // ── Room CRUD ────────────────────────────────────────────────────────────
 
-  const addRoom = useCallback(async (name: string) => {
-    const newRoom = await getRepository().addRoom(name);
+  const addRoom = useCallback(async (name: string, color?: string) => {
+    const newRoom = await getRepository().addRoom(name, color);
     setRooms(prev => [...prev, newRoom].sort((a, b) => a.sort_order - b.sort_order));
     return newRoom;
   }, []);
@@ -142,6 +182,8 @@ export function useReservations() {
     addReservations,
     updateReservation,
     cancelReservation,
+    cancelReservationsByGroup,
+    updateReservationsByGroup,
     addRoom,
     updateRoom,
     deleteRoom,

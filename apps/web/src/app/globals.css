@@ -4,6 +4,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── 포인트 컬러 CSS 변수 (기본값: violet-600) ──────────────────────────── */
+:root {
+  --accent:         #6d28d9;
+  --accent-dark:    #5b21b6;
+  --accent-mid:     #7c3aed;
+  --accent-light:   rgba(109, 40, 217, 0.12);
+  --accent-lighter: rgba(109, 40, 217, 0.06);
+  --accent-border:  rgba(109, 40, 217, 0.28);
+  --accent-300:     rgba(109, 40, 217, 0.40);
+  --accent-rgb:     109, 40, 217;
+}
+
+/* checkbox / radio accent-color 유틸리티 */
+.accent-themed { accent-color: var(--accent); }
+
 *, *::before, *::after {
   box-sizing: border-box;
 }

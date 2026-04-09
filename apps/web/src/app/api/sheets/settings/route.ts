@@ -15,9 +15,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sheetId, roomName, workDays } = await req.json();
+    const { sheetId, workDays, repeatMaxCount, layoutWidth } = await req.json();
     if (!sheetId) return NextResponse.json({ error: 'sheetId required' }, { status: 400 });
-    await saveSheetSettings(sheetId, { roomName, workDays });
+    await saveSheetSettings(sheetId, {
+      workDays,
+      repeatMaxCount: typeof repeatMaxCount === 'number' ? repeatMaxCount : 100,
+      layoutWidth: layoutWidth === 'full' || typeof layoutWidth === 'number' ? layoutWidth : 'full',
+    });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);

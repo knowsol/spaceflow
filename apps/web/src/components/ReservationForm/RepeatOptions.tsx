@@ -1,6 +1,8 @@
 'use client';
 
+import { useMemo } from 'react';
 import { RepeatType } from '@/lib/types';
+import { generateRepeatDates, REPEAT_MAX_COUNT } from '@/lib/reservationLogic';
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -32,11 +34,28 @@ interface Props {
   value: RepeatConfig;
   onChange: (v: RepeatConfig) => void;
   baseDate: string;
+  maxCount?: number;
   errors?: { repeat_days?: string; repeat_end_date?: string };
 }
 
-export default function RepeatOptions({ value, onChange, baseDate, errors }: Props) {
+export default function RepeatOptions({ value, onChange, baseDate, maxCount, errors }: Props) {
   const update = (partial: Partial<RepeatConfig>) => onChange({ ...value, ...partial });
+
+  const limit = maxCount ?? REPEAT_MAX_COUNT;
+
+  // 실시간 생성 건수 계산
+  const repeatCount = useMemo(() => {
+    if (value.repeat_type === 'none' || !value.repeat_end_date) return 0;
+    return generateRepeatDates(
+      value.repeat_start_date || baseDate,
+      value.repeat_end_date,
+      value.repeat_type,
+      value.repeat_interval,
+      value.repeat_days
+    ).length;
+  }, [value, baseDate]);
+
+  const isOverLimit = repeatCount > limit;
 
   const toggleDay = (idx: number) => {
     const days = value.repeat_days.includes(idx)
@@ -62,9 +81,9 @@ export default function RepeatOptions({ value, onChange, baseDate, errors }: Pro
                 })
               }
               className={[
-                'px-3 py-1.5 text-xs rounded-lg border font-medium transition-colors',
+                'px-3 py-1.5 text-xs rounded-sm border font-medium transition-colors',
                 value.repeat_type === opt.value
-                  ? 'bg-blue-600 text-white border-blue-600'
+                  ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
                   : 'border-gray-200 text-gray-600 hover:bg-gray-50',
               ].join(' ')}
             >
@@ -87,7 +106,7 @@ export default function RepeatOptions({ value, onChange, baseDate, errors }: Pro
               max={99}
               value={value.repeat_interval}
               onChange={e => update({ repeat_interval: Math.max(1, parseInt(e.target.value) || 1) })}
-              className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-16 border border-gray-200 rounded-sm px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             />
             <span className="text-xs text-gray-500">
               {INTERVAL_UNIT[value.repeat_type]}마다
@@ -109,11 +128,11 @@ export default function RepeatOptions({ value, onChange, baseDate, errors }: Pro
                       className={[
                         'w-8 h-8 rounded-full text-xs font-medium transition-colors',
                         active
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-[var(--accent)] text-white'
                           : idx === 0
                           ? 'bg-red-50 text-red-400 hover:bg-red-100'
                           : idx === 6
-                          ? 'bg-blue-50 text-blue-500 hover:bg-blue-100'
+                          ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                       ].join(' ')}
                     >
@@ -136,8 +155,15 @@ export default function RepeatOptions({ value, onChange, baseDate, errors }: Pro
                 type="date"
                 value={value.repeat_start_date}
                 min={baseDate}
-                onChange={e => update({ repeat_start_date: e.target.value })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={e => {
+                  const newStart = e.target.value;
+                  const patch: Partial<RepeatConfig> = { repeat_start_date: newStart };
+                  if (value.repeat_end_date && newStart >= value.repeat_end_date) {
+                    patch.repeat_end_date = newStart;
+                  }
+                  update(patch);
+                }}
+                className="w-full border border-gray-200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
             </div>
             <div>
@@ -146,8 +172,15 @@ export default function RepeatOptions({ value, onChange, baseDate, errors }: Pro
                 type="date"
                 value={value.repeat_end_date}
                 min={value.repeat_start_date || baseDate}
-                onChange={e => update({ repeat_end_date: e.target.value })}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                onChange={e => {
+                  const newEnd = e.target.value;
+                  const patch: Partial<RepeatConfig> = { repeat_end_date: newEnd };
+                  if (value.repeat_start_date && newEnd <= value.repeat_start_date) {
+                    patch.repeat_start_date = newEnd;
+                  }
+                  update(patch);
+                }}
+                className={`w-full border rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${
                   errors?.repeat_end_date ? 'border-red-300' : 'border-gray-200'
                 }`}
               />
@@ -156,6 +189,36 @@ export default function RepeatOptions({ value, onChange, baseDate, errors }: Pro
               )}
             </div>
           </div>
+
+          {/* 생성 건수 미리보기 */}
+          {repeatCount > 0 && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+              isOverLimit
+                ? 'bg-red-50 border border-red-200 text-red-600'
+                : 'bg-[var(--accent-lighter)] border border-[var(--accent-border)] text-[var(--accent)]'
+            }`}>
+              {isOverLimit ? (
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5" />
+                </svg>
+              )}
+              <span>
+                {isOverLimit
+                  ? `${repeatCount}건 — 최대 ${limit}건 초과. 종료일을 앞당겨 주세요.`
+                  : `${repeatCount}건 생성 예정 (최대 ${limit}건)`
+                }
+              </span>
+              {!isOverLimit && (
+                <span className="ml-auto text-[var(--accent-mid)] font-medium">
+                  {Math.round((repeatCount / REPEAT_MAX_COUNT) * 100)}%
+                </span>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

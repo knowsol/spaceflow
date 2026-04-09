@@ -7,10 +7,11 @@ async function fetchSheetSettings(sheetId: string): Promise<Partial<AppSettings>
   const res = await fetch(`/api/sheets/settings?sheetId=${encodeURIComponent(sheetId)}`);
   if (!res.ok) return {};
   const data = await res.json();
-  if (!data || (!data.roomName && !data.workDays)) return {};
+  if (!data || (!data.workDays && !data.repeatMaxCount)) return {};
   return {
-    ...(data.roomName ? { roomName: data.roomName } : {}),
     ...(Array.isArray(data.workDays) ? { workDays: data.workDays } : {}),
+    ...(typeof data.repeatMaxCount === 'number' ? { repeatMaxCount: data.repeatMaxCount } : {}),
+    ...(data.layoutWidth !== undefined ? { layoutWidth: data.layoutWidth } : {}),
   };
 }
 
@@ -18,7 +19,12 @@ async function pushSheetSettings(sheetId: string, s: AppSettings): Promise<void>
   await fetch('/api/sheets/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sheetId, roomName: s.roomName, workDays: s.workDays }),
+    body: JSON.stringify({
+      sheetId,
+      workDays: s.workDays,
+      repeatMaxCount: s.repeatMaxCount ?? 100,
+      layoutWidth: s.layoutWidth ?? 'full',
+    }),
   });
 }
 

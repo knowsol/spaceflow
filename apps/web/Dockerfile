@@ -15,6 +15,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/.env.local ./.env.local
 
 EXPOSE 3006
 ENV PORT=3006

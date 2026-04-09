@@ -128,12 +128,13 @@ export async function getRooms(sheetId: string): Promise<Room[]> {
   return rows.filter(r => r.length > 0).map(deserializeRoom).sort((a, b) => a.sort_order - b.sort_order);
 }
 
-export async function addRoom(sheetId: string, name: string): Promise<Room> {
+export async function addRoom(sheetId: string, name: string, color = '#6d28d9'): Promise<Room> {
   const rows = await readSheet(sheetId, SHEET_NAMES.rooms);
   const maxOrder = rows.reduce((m, r) => Math.max(m, parseInt(r[3] || '0', 10)), 0);
   const newRoom: Room = {
     room_id: `room-${Date.now()}`,
     room_name: name.trim(),
+    color,
     is_active: true,
     sort_order: maxOrder + 1,
   };
@@ -179,17 +180,21 @@ export async function addReservations(
   }));
   for (const r of added) {
     await appendRow(sheetId, SHEET_NAMES.reservations, serializeReservation(r));
-    const hist: ReservationHistory = {
-      history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      reservation_id: r.reservation_id,
-      action: 'create',
-      changed_by: created_by,
-      changed_at: now,
-      before_snapshot: null,
-      after_snapshot: r,
-      changed_fields: [],
-    };
-    await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+    try {
+      const hist: ReservationHistory = {
+        history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        reservation_id: r.reservation_id,
+        action: 'create',
+        changed_by: created_by,
+        changed_at: now,
+        before_snapshot: null,
+        after_snapshot: r,
+        changed_fields: [],
+      };
+      await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+    } catch {
+      // history 기록 실패는 예약 등록 자체에 영향 없음
+    }
   }
   return added;
 }
@@ -206,17 +211,21 @@ export async function updateReservation(
   const before = deserializeReservation(rows[idx]);
   const after: Reservation = { ...before, ...data, updated_at: new Date().toISOString() };
   await updateRow(sheetId, SHEET_NAMES.reservations, idx, serializeReservation(after));
-  const hist: ReservationHistory = {
-    history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    reservation_id: id,
-    action: 'update',
-    changed_by,
-    changed_at: new Date().toISOString(),
-    before_snapshot: before,
-    after_snapshot: after,
-    changed_fields: Object.keys(data).filter(k => k !== 'updated_at'),
-  };
-  await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+  try {
+    const hist: ReservationHistory = {
+      history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      reservation_id: id,
+      action: 'update',
+      changed_by,
+      changed_at: new Date().toISOString(),
+      before_snapshot: before,
+      after_snapshot: after,
+      changed_fields: Object.keys(data).filter(k => k !== 'updated_at'),
+    };
+    await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+  } catch {
+    // history 기록 실패는 수정 처리 자체에 영향 없음
+  }
   return after;
 }
 
@@ -227,24 +236,82 @@ export async function cancelReservation(sheetId: string, id: string, cancelled_b
   const before = deserializeReservation(rows[idx]);
   const after: Reservation = { ...before, status: 'cancelled', updated_at: new Date().toISOString() };
   await updateRow(sheetId, SHEET_NAMES.reservations, idx, serializeReservation(after));
-  const hist: ReservationHistory = {
-    history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    reservation_id: id,
-    action: 'cancel',
-    changed_by: cancelled_by,
-    changed_at: new Date().toISOString(),
-    before_snapshot: before,
-    after_snapshot: null,
-    changed_fields: [],
-  };
-  await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+  try {
+    const hist: ReservationHistory = {
+      history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      reservation_id: id,
+      action: 'cancel',
+      changed_by: cancelled_by,
+      changed_at: new Date().toISOString(),
+      before_snapshot: before,
+      after_snapshot: null,
+      changed_fields: [],
+    };
+    await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+  } catch {
+    // history 기록 실패는 취소 처리 자체에 영향 없음
+  }
+}
+
+export async function cancelReservationsByGroup(sheetId: string, groupId: string, cancelledBy: string): Promise<void> {
+  const rows = await readSheet(sheetId, SHEET_NAMES.reservations);
+  const now = new Date().toISOString();
+  for (let idx = 0; idx < rows.length; idx++) {
+    const r = deserializeReservation(rows[idx]);
+    if (r.repeat_group_id !== groupId || r.status === 'cancelled') continue;
+    const after: Reservation = { ...r, status: 'cancelled', updated_at: now };
+    await updateRow(sheetId, SHEET_NAMES.reservations, idx, serializeReservation(after));
+    try {
+      const hist: ReservationHistory = {
+        history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        reservation_id: r.reservation_id,
+        action: 'cancel',
+        changed_by: cancelledBy,
+        changed_at: now,
+        before_snapshot: r,
+        after_snapshot: null,
+        changed_fields: [],
+      };
+      await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+    } catch { }
+  }
+}
+
+export async function updateReservationsByGroup(
+  sheetId: string,
+  groupId: string,
+  data: Partial<Omit<Reservation, 'reservation_id' | 'created_at' | 'date'>>,
+  changedBy: string
+): Promise<void> {
+  const rows = await readSheet(sheetId, SHEET_NAMES.reservations);
+  const now = new Date().toISOString();
+  for (let idx = 0; idx < rows.length; idx++) {
+    const r = deserializeReservation(rows[idx]);
+    if (r.repeat_group_id !== groupId || r.status === 'cancelled') continue;
+    const after: Reservation = { ...r, ...data, updated_at: now };
+    await updateRow(sheetId, SHEET_NAMES.reservations, idx, serializeReservation(after));
+    try {
+      const hist: ReservationHistory = {
+        history_id: `hist-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        reservation_id: r.reservation_id,
+        action: 'update',
+        changed_by: changedBy,
+        changed_at: now,
+        before_snapshot: r,
+        after_snapshot: after,
+        changed_fields: Object.keys(data).filter(k => k !== 'updated_at'),
+      };
+      await appendRow(sheetId, SHEET_NAMES.history, serializeHistory(hist));
+    } catch { }
+  }
 }
 
 // ─── Settings ──────────────────────────────────────────────────────────────────
 
 export interface SheetSettingsData {
-  roomName: string;
   workDays: number[];
+  repeatMaxCount: number;
+  layoutWidth: 'full' | number;
 }
 
 export async function getSheetSettings(sheetId: string): Promise<SheetSettingsData | null> {
@@ -255,10 +322,12 @@ export async function getSheetSettings(sheetId: string): Promise<SheetSettingsDa
     for (const row of rows) {
       if (row[0]) map[row[0]] = row[1] ?? '';
     }
-    if (!map.roomName && !map.workDays) return null;
+    if (!map.workDays && !map.repeatMaxCount) return null;
+    const lw = map.layoutWidth;
     return {
-      roomName: map.roomName ?? '',
       workDays: map.workDays ? map.workDays.split(',').map(Number).filter(n => !isNaN(n)) : [1,2,3,4,5],
+      repeatMaxCount: map.repeatMaxCount ? parseInt(map.repeatMaxCount, 10) : 100,
+      layoutWidth: lw === 'full' ? 'full' : lw ? parseInt(lw, 10) : 'full',
     };
   } catch {
     return null;
@@ -270,8 +339,9 @@ export async function saveSheetSettings(sheetId: string, data: SheetSettingsData
   const rows = await readSheet(sheetId, SHEET_NAMES.settings);
 
   const entries: Record<string, string> = {
-    roomName: data.roomName,
     workDays: data.workDays.join(','),
+    repeatMaxCount: String(data.repeatMaxCount),
+    layoutWidth: String(data.layoutWidth ?? 'full'),
   };
 
   for (const [key, value] of Object.entries(entries)) {

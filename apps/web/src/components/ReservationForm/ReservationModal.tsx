@@ -9,9 +9,12 @@ import {
   generateTimeOptions,
   timeToMinutes,
   minutesToTime,
+  REPEAT_MAX_COUNT,
 } from '@/lib/reservationLogic';
 import TimeSelector from './TimeSelector';
 import RepeatOptions, { RepeatConfig } from './RepeatOptions';
+import { useStoredName } from '@/hooks/useStoredName';
+import RightPanel from '@/components/RightPanel';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -27,25 +30,44 @@ type EditMode = {
   initialData?: undefined;
 };
 
+export type EditScope = 'single' | 'group';
+
 type Props = (CreateMode | EditMode) & {
+  open: boolean;
   reservations: Reservation[];
   rooms: Room[];
   selectedRoomId?: string;
+  repeatMaxCount?: number;
   onClose: () => void;
   /** create 모드 */
-  onSubmit?: (items: Omit<Reservation, 'reservation_id' | 'created_at' | 'updated_at'>[], created_by: string) => void;
-  /** edit 모드 */
+  onSubmit?: (items: Omit<Reservation, 'reservation_id' | 'created_at' | 'updated_at'>[], created_by: string) => Promise<void> | void;
+  /** edit 모드 — scope: 'single'=이 항목만, 'group'=전체 시리즈 */
   onUpdate?: (
     id: string,
     data: Partial<Omit<Reservation, 'reservation_id' | 'created_at'>>,
-    changed_by: string
-  ) => void;
+    changed_by: string,
+    scope: EditScope
+  ) => Promise<void> | void;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TODAY = formatDate(new Date());
 const TIME_OPTIONS = generateTimeOptions(8, 22);
+
+/** 이번 달 말일 (YYYY-MM-DD) */
+function lastDayOfCurrentMonth(): string {
+  const now = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return formatDate(last);
+}
+
+/** 현재 시각 이후 첫 번째 선택 가능한 시간 슬롯 반환 */
+function nextAvailableTime(): string {
+  const now = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return TIME_OPTIONS.find(t => t > hhmm) ?? TIME_OPTIONS[TIME_OPTIONS.length - 2] ?? '09:00';
+}
 
 const DURATION_PRESETS = [
   { label: '30분', minutes: 30 },
@@ -78,37 +100,45 @@ function reservationToForm(r: Reservation): ReservationFormData {
 }
 
 function defaultForm(init?: CreateMode['initialData']): ReservationFormData {
+  const defaultStart = init?.start_time ?? nextAvailableTime();
+  const defaultEnd = init?.end_time ?? (TIME_OPTIONS.find(t => t > defaultStart) ?? '22:00');
   return {
     title: '',
     reserver_name: '',
     purpose: '',
     date: init?.date ?? TODAY,
-    start_time: init?.start_time ?? '09:00',
-    end_time: init?.end_time ?? '10:00',
+    start_time: defaultStart,
+    end_time: defaultEnd,
     all_day: false,
     repeat_type: 'none',
     repeat_interval: 1,
     repeat_days: [],
     repeat_start_date: init?.date ?? TODAY,
-    repeat_end_date: '',
+    repeat_end_date: lastDayOfCurrentMonth(),
   };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ReservationModal(props: Props) {
-  const { reservations, rooms, selectedRoomId, onClose } = props;
+  const { open, reservations, rooms, selectedRoomId, repeatMaxCount, onClose } = props;
+  const limit = repeatMaxCount ?? REPEAT_MAX_COUNT;
   const isEdit = props.mode === 'edit';
   const editTarget = isEdit ? props.editTarget : undefined;
 
   const activeRooms = rooms.filter(r => r.is_active);
 
   // 선택된 회의실 ID: edit이면 원래 예약의 room_id, create면 selectedRoomId 또는 첫 번째 방
-  const defaultRoomId = isEdit
+  // selectedRoomId가 활성 방 목록에 없으면 첫 번째 활성 방 사용
+  const resolvedDefaultRoomId = isEdit
     ? (editTarget?.room_id ?? activeRooms[0]?.room_id ?? '')
-    : (selectedRoomId ?? activeRooms[0]?.room_id ?? '');
+    : (activeRooms.some(r => r.room_id === selectedRoomId)
+        ? selectedRoomId ?? activeRooms[0]?.room_id ?? ''
+        : activeRooms[0]?.room_id ?? '');
 
-  const [roomId, setRoomId] = useState(defaultRoomId);
+  const [roomId, setRoomId] = useState(resolvedDefaultRoomId);
+
+  const { savedName, isSaveEnabled, setIsSaveEnabled, persistName, clearName } = useStoredName();
 
   const [form, setForm] = useState<ReservationFormData>(() =>
     isEdit ? reservationToForm(editTarget!) : defaultForm(props.initialData)
@@ -116,6 +146,15 @@ export default function ReservationModal(props: Props) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [conflicts, setConflicts] = useState<{ dates: string[]; items: Reservation[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editScope, setEditScope] = useState<EditScope>('single');
+
+  // 저장된 이름 초기 세팅 (create 모드이고 아직 입력 안 했을 때만)
+  useEffect(() => {
+    if (!isEdit && savedName && !form.reserver_name) {
+      setForm(prev => ({ ...prev, reserver_name: savedName }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedName]);
 
   const room = activeRooms.find(r => r.room_id === roomId) ?? activeRooms[0];
 
@@ -154,6 +193,17 @@ export default function ReservationModal(props: Props) {
       if (!form.repeat_end_date) e.repeat_end_date = '반복 종료일을 입력해주세요';
       else if (form.repeat_start_date > form.repeat_end_date)
         e.repeat_end_date = '종료일은 시작일보다 늦어야 합니다';
+      else {
+        const count = generateRepeatDates(
+          form.repeat_start_date || form.date,
+          form.repeat_end_date,
+          form.repeat_type,
+          form.repeat_interval,
+          form.repeat_days
+        ).length;
+        if (count > limit)
+          e.repeat_end_date = `최대 ${limit}건까지 생성 가능합니다 (현재 ${count}건). 종료일을 앞당겨 주세요.`;
+      }
       if (form.repeat_type === 'weekly' && form.repeat_days.length === 0)
         e.repeat_days = '반복 요일을 하나 이상 선택해주세요';
     }
@@ -165,9 +215,16 @@ export default function ReservationModal(props: Props) {
     if (!validate()) return;
     setSubmitting(true);
 
+    // 이름 저장 처리
+    if (isSaveEnabled) {
+      persistName(form.reserver_name);
+    } else {
+      clearName();
+    }
+
     // ── Edit mode ──────────────────────────────────────────────────────────
     if (isEdit && editTarget && props.onUpdate) {
-      // Conflict check (exclude self, same room only)
+      // Conflict check (exclude self + same repeat group)
       const result = checkConflicts(
         {
           dates: [form.date],
@@ -177,7 +234,8 @@ export default function ReservationModal(props: Props) {
           room_id: roomId,
         },
         reservations,
-        editTarget.reservation_id
+        editTarget.reservation_id,
+        editTarget.repeat_group_id ?? undefined
       );
       if (result.hasConflict) {
         setConflicts({ dates: result.conflictDates, items: result.conflictReservations });
@@ -185,7 +243,7 @@ export default function ReservationModal(props: Props) {
         return;
       }
 
-      props.onUpdate(
+      await props.onUpdate(
         editTarget.reservation_id,
         {
           title: form.title.trim(),
@@ -201,7 +259,8 @@ export default function ReservationModal(props: Props) {
           repeat_start_date: form.repeat_type !== 'none' ? form.repeat_start_date : null,
           repeat_end_date: form.repeat_type !== 'none' ? form.repeat_end_date : null,
         },
-        form.reserver_name.trim()
+        form.reserver_name.trim(),
+        editScope
       );
       setSubmitting(false);
       return;
@@ -241,7 +300,7 @@ export default function ReservationModal(props: Props) {
         })
       );
 
-      props.onSubmit(newItems, form.reserver_name.trim());
+      await props.onSubmit(newItems, form.reserver_name.trim());
     }
 
     setSubmitting(false);
@@ -250,42 +309,78 @@ export default function ReservationModal(props: Props) {
   const repeatDates = form.repeat_type !== 'none' && form.repeat_end_date ? getDates() : null;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[92vh] flex flex-col">
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              {isEdit ? '예약 수정' : '예약하기'}
-            </h2>
-            {isEdit && editTarget?.repeat_type !== 'none' && (
-              <p className="text-xs text-amber-600 mt-0.5">반복 예약 — 이 항목만 수정됩니다</p>
-            )}
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <RightPanel open={open} onClose={onClose}>
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">
+            {isEdit ? '예약 수정' : '예약하기'}
+          </h2>
+          {isEdit && editTarget?.repeat_type !== 'none' && editTarget?.repeat_group_id && (
+            <p className="text-xs text-amber-600 mt-0.5">반복 예약</p>
+          )}
         </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-sm hover:bg-gray-100">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
 
-        {/* ── Scrollable body ──────────────────────────────────────────────── */}
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+      {/* ── Scrollable body ──────────────────────────────────────────────── */}
+      <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+
+          {/* 반복 일정 수정 범위 선택 */}
+          {isEdit && editTarget?.repeat_type !== 'none' && editTarget?.repeat_group_id && (
+            <div className="rounded-lg border border-amber-100 bg-amber-50 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setEditScope('single')}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                  editScope === 'single' ? 'bg-amber-100' : 'hover:bg-amber-100/60'
+                }`}
+              >
+                <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                  editScope === 'single' ? 'border-amber-500' : 'border-gray-300'
+                }`}>
+                  {editScope === 'single' && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                </span>
+                <div>
+                  <p className="text-xs font-medium text-gray-800">이 항목만 수정</p>
+                  <p className="text-xs text-gray-400">{editTarget.date} 일정만 변경됩니다.</p>
+                </div>
+              </button>
+              <div className="h-px bg-amber-100" />
+              <button
+                type="button"
+                onClick={() => setEditScope('group')}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                  editScope === 'group' ? 'bg-amber-100' : 'hover:bg-amber-100/60'
+                }`}
+              >
+                <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                  editScope === 'group' ? 'border-amber-500' : 'border-gray-300'
+                }`}>
+                  {editScope === 'group' && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                </span>
+                <div>
+                  <p className="text-xs font-medium text-gray-800">전체 반복 일정 수정</p>
+                  <p className="text-xs text-gray-400">이 시리즈의 모든 일정에 적용됩니다.</p>
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* Room selector */}
           {activeRooms.length <= 1 ? (
-            <div className="bg-blue-50 rounded-lg px-3 py-2 flex items-center gap-2">
+            <div className="bg-gray-50 rounded-sm px-3 py-2 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-              <span className="text-sm font-medium text-blue-700">{room?.room_name ?? '공용 회의실'}</span>
+              <span className="text-sm font-medium text-gray-800">{room?.room_name ?? '공용 공간'}</span>
             </div>
           ) : (
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
-                회의실 <span className="text-red-400">*</span>
+                공간 <span className="text-red-400">*</span>
               </label>
               <div className="flex flex-wrap gap-2">
                 {activeRooms.map(r => (
@@ -294,10 +389,10 @@ export default function ReservationModal(props: Props) {
                     type="button"
                     onClick={() => { setRoomId(r.room_id); setConflicts(null); }}
                     className={[
-                      'px-3 py-1.5 text-sm rounded-lg border transition-colors',
+                      'px-3 py-1.5 text-sm rounded-sm border transition-colors',
                       roomId === r.room_id
-                        ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600',
+                        ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-900',
                     ].join(' ')}
                   >
                     {r.room_name}
@@ -319,7 +414,21 @@ export default function ReservationModal(props: Props) {
           </Field>
 
           {/* Reserver */}
-          <Field label="예약자명" required error={errors.reserver_name}>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-600">
+                예약자명 <span className="text-red-400">*</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSaveEnabled}
+                  onChange={e => setIsSaveEnabled(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 accent-themed cursor-pointer"
+                />
+                <span className="text-xs text-gray-400 select-none">이름 저장</span>
+              </label>
+            </div>
             <input
               type="text"
               placeholder="이름"
@@ -327,7 +436,10 @@ export default function ReservationModal(props: Props) {
               onChange={e => update({ reserver_name: e.target.value })}
               className={inputCls(!!errors.reserver_name)}
             />
-          </Field>
+            {errors.reserver_name && (
+              <p className="text-xs text-red-500 mt-1">{errors.reserver_name}</p>
+            )}
+          </div>
 
           {/* Purpose */}
           <Field label="예약 목적">
@@ -336,102 +448,108 @@ export default function ReservationModal(props: Props) {
               value={form.purpose}
               onChange={e => update({ purpose: e.target.value })}
               rows={2}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full border border-gray-200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
             />
           </Field>
 
-          {/* Date */}
-          <Field label="날짜" required error={errors.date}>
-            <input
-              type="date"
-              value={form.date}
-              onChange={e => update({ date: e.target.value, repeat_start_date: e.target.value })}
-              className={inputCls(!!errors.date)}
-            />
-          </Field>
-
-          {/* All-day toggle */}
-          <div className="flex items-center justify-between py-1">
-            <div>
-              <p className="text-sm font-medium text-gray-700">종일 사용</p>
-              <p className="text-xs text-gray-400">시간 선택 없이 하루 전체 점유</p>
+          {/* Date + Time — single row */}
+          <div>
+            <div className="grid gap-2 grid-cols-[3fr_2fr_2fr]">
+              {/* 날짜 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  날짜 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={e => update({ date: e.target.value, repeat_start_date: e.target.value })}
+                  className={inputCls(!!errors.date)}
+                />
+                {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date}</p>}
+              </div>
+              {/* 시작 시간 */}
+              <TimeSelector
+                label="시작 시간 *"
+                value={form.start_time}
+                disabled={form.all_day}
+                onChange={v => {
+                  const newEnd =
+                    form.end_time <= v
+                      ? TIME_OPTIONS.find(t => t > v) ?? '22:00'
+                      : form.end_time;
+                  update({ start_time: v, end_time: newEnd });
+                }}
+              />
+              {/* 종료 시간 */}
+              <TimeSelector
+                label="종료 시간 *"
+                value={form.end_time}
+                disabled={form.all_day}
+                onChange={v => update({ end_time: v })}
+                minTime={form.start_time}
+                error={errors.end_time}
+              />
             </div>
+          </div>
+
+          {/* 종일 · 이용시간 — compact sub-row */}
+          <div className="flex items-center gap-2 flex-wrap -mt-1">
+            {/* 종일 토글 */}
             <button
               type="button"
               onClick={() => update({ all_day: !form.all_day })}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                form.all_day ? 'bg-blue-600' : 'bg-gray-200'
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-sm border transition-colors flex-shrink-0 ${
+                form.all_day
+                  ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700'
               }`}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                  form.all_day ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13z"/>
+              </svg>
+              종일
             </button>
-          </div>
 
-          {/* Time selectors */}
-          {!form.all_day && (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-3">
-                <TimeSelector
-                  label="시작 시간 *"
-                  value={form.start_time}
-                  onChange={v => {
-                    const newEnd =
-                      form.end_time <= v
-                        ? TIME_OPTIONS.find(t => t > v) ?? '22:00'
-                        : form.end_time;
-                    update({ start_time: v, end_time: newEnd });
+            {/* 구분 */}
+            <span className="text-gray-200 text-xs select-none">|</span>
+
+            {/* 이용 시간 프리셋 */}
+            {DURATION_PRESETS.map(({ label, minutes }) => {
+              const targetEnd = minutesToTime(
+                Math.min(timeToMinutes(form.start_time) + minutes, 22 * 60)
+              );
+              const isActive = !form.all_day && TIME_OPTIONS.includes(targetEnd) && form.end_time === targetEnd;
+              return (
+                <button
+                  key={minutes}
+                  type="button"
+                  disabled={form.all_day}
+                  onClick={() => {
+                    const endTime = TIME_OPTIONS.includes(targetEnd)
+                      ? targetEnd
+                      : TIME_OPTIONS.filter(t => t > form.start_time).at(-1) ?? '22:00';
+                    update({ end_time: endTime });
                   }}
-                />
-                <TimeSelector
-                  label="종료 시간 *"
-                  value={form.end_time}
-                  onChange={v => update({ end_time: v })}
-                  minTime={form.start_time}
-                  error={errors.end_time}
-                />
-              </div>
-              {/* Duration quick-select */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-400 flex-shrink-0">이용 시간</span>
-                {DURATION_PRESETS.map(({ label, minutes }) => {
-                  const targetEnd = minutesToTime(
-                    Math.min(timeToMinutes(form.start_time) + minutes, 22 * 60)
-                  );
-                  const isActive =
-                    TIME_OPTIONS.includes(targetEnd) &&
-                    form.end_time === targetEnd;
-                  return (
-                    <button
-                      key={minutes}
-                      type="button"
-                      onClick={() => {
-                        const endTime = TIME_OPTIONS.includes(targetEnd)
-                          ? targetEnd
-                          : TIME_OPTIONS.filter(t => t > form.start_time).at(-1) ?? '22:00';
-                        update({ end_time: endTime });
-                      }}
-                      className={[
-                        'px-2.5 py-1 text-xs rounded-lg border transition-colors',
-                        isActive
-                          ? 'bg-blue-600 border-blue-600 text-white'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600',
-                      ].join(' ')}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                  className={[
+                    'px-2.5 py-1 text-xs rounded-sm border transition-colors flex-shrink-0',
+                    form.all_day
+                      ? 'border-gray-100 text-gray-300 cursor-not-allowed bg-white'
+                      : isActive
+                        ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700',
+                  ].join(' ')}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
           {/* Repeat options (create only — edit affects single instance) */}
           {!isEdit && (
-            <div className="border-t border-gray-100 pt-4">
+            <div className={`border-t border-gray-100 pt-4 ${form.all_day ? 'opacity-40 pointer-events-none select-none' : ''}`}>
               <RepeatOptions
                 value={{
                   repeat_type: form.repeat_type,
@@ -442,6 +560,7 @@ export default function ReservationModal(props: Props) {
                 }}
                 onChange={(v: RepeatConfig) => update(v)}
                 baseDate={form.date}
+                maxCount={limit}
                 errors={{
                   repeat_days: errors.repeat_days,
                   repeat_end_date: errors.repeat_end_date,
@@ -450,21 +569,16 @@ export default function ReservationModal(props: Props) {
             </div>
           )}
 
-          {/* Repeat summary */}
-          {!isEdit && repeatDates && (
-            <div className="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-600">
-              {repeatDates.length}개의 예약이 생성됩니다 ({form.repeat_start_date} ~ {form.repeat_end_date})
-            </div>
-          )}
+          {/* Repeat summary — RepeatOptions 내부에 카운트 표시되므로 제거 */}
 
           {/* Conflict warning */}
           {conflicts && conflicts.dates.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="bg-red-50 border border-red-200 rounded-sm p-4">
               <p className="text-sm font-semibold text-red-700 mb-2">⚠ 예약 충돌</p>
               <p className="text-xs text-red-600 mb-2">아래 날짜에 이미 예약이 있습니다:</p>
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {conflicts.dates.map(d => (
-                  <div key={d} className="text-xs bg-red-100 text-red-600 rounded px-2 py-1">
+                  <div key={d} className="text-xs bg-red-100 text-red-600 rounded-sm px-2 py-1">
                     {d}
                     {conflicts.items
                       .filter(r => r.date === d)
@@ -478,26 +592,25 @@ export default function ReservationModal(props: Props) {
           )}
         </div>
 
-        {/* ── Footer ──────────────────────────────────────────────────────── */}
-        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors font-medium"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="flex-1 py-2.5 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-          >
-            {submitting ? '처리 중...' : isEdit ? '수정 저장' : '저장'}
-          </button>
-        </div>
+      {/* ── Footer ──────────────────────────────────────────────────────── */}
+      <div className="flex gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 py-2.5 text-sm border border-gray-200 text-gray-600 rounded-sm hover:bg-gray-50 transition-colors font-medium"
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="flex-1 py-2.5 text-sm bg-[var(--accent)] text-white rounded-sm hover:bg-[var(--accent-dark)] transition-colors font-medium disabled:opacity-50"
+        >
+          {submitting ? '처리 중...' : isEdit ? '수정 저장' : '저장'}
+        </button>
       </div>
-    </div>
+    </RightPanel>
   );
 }
 
@@ -531,8 +644,8 @@ function Field({
 
 function inputCls(hasError: boolean) {
   return [
-    'w-full border rounded-lg px-3 py-2 text-sm',
-    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+    'w-full border rounded-sm px-3 h-9 text-sm',
+    'focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent',
     hasError ? 'border-red-300' : 'border-gray-200',
   ].join(' ');
 }

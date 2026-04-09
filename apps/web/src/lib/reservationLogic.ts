@@ -1,5 +1,8 @@
 import { Reservation, TimeSlot, ConflictResult, RepeatType } from './types';
 
+/** 반복 일정 최대 생성 건수 */
+export const REPEAT_MAX_COUNT = 100;
+
 // ─── Date / time utilities ────────────────────────────────────────────────────
 
 /** "HH:mm" → minutes since midnight */
@@ -178,7 +181,7 @@ export function generateRepeatDates(
   const dates: string[] = [];
   let safety = 0;
 
-  while (cur <= end && safety++ < 600) {
+  while (cur <= end && safety++ < REPEAT_MAX_COUNT) {
     const ds = formatDate(cur);
 
     switch (repeatType) {
@@ -243,7 +246,8 @@ export function getWeekDates(dateStr: string): string[] {
 export function checkConflicts(
   params: { dates: string[]; start_time: string; end_time: string; all_day: boolean; room_id?: string },
   existingReservations: Reservation[],
-  excludeId?: string
+  excludeId?: string,
+  excludeGroupId?: string
 ): ConflictResult {
   // room_id가 주어지면 해당 방의 예약만 검사
   if (params.room_id) {
@@ -254,7 +258,8 @@ export function checkConflicts(
 
   for (const date of params.dates) {
     const dayRes = getReservationsForDate(existingReservations, date).filter(
-      r => r.reservation_id !== excludeId
+      r => r.reservation_id !== excludeId &&
+           !(excludeGroupId && r.repeat_group_id && r.repeat_group_id === excludeGroupId)
     );
     for (const existing of dayRes) {
       const clash =

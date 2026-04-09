@@ -27,9 +27,9 @@ export default function RoomTabs({ rooms, selectedRoomId, onSelect }: Props) {
             key={room.room_id}
             onClick={() => onSelect(room.room_id)}
             className={[
-              'px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors flex-shrink-0',
+              'px-4 py-2 text-sm font-medium rounded-sm whitespace-nowrap transition-colors flex-shrink-0',
               isSelected
-                ? 'bg-gray-900 text-white'
+                ? 'bg-[var(--accent)] text-white'
                 : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900',
             ].join(' ')}
           >

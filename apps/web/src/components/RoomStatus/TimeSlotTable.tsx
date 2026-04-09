@@ -1,7 +1,7 @@
 'use client';
 
 import { Reservation } from '@/lib/types';
-import { getReservationsForDate, timeToMinutes } from '@/lib/reservationLogic';
+import { getReservationsForDate, timeToMinutes, formatDateDisplay } from '@/lib/reservationLogic';
 
 const START_HOUR = 8;
 const END_HOUR = 22;
@@ -31,26 +31,26 @@ function ResBlock({ reservation: r, onEdit, onCancel }: BlockProps) {
 
   return (
     <div
-      className="absolute left-0.5 right-0.5 rounded overflow-hidden group/res cursor-pointer z-10 transition-opacity hover:opacity-90"
+      className="absolute left-0.5 right-0.5 rounded-sm overflow-hidden group/res cursor-pointer z-10 transition-opacity hover:opacity-90"
       style={{ top, height }}
       onClick={() => onEdit(r)}
     >
-      <div className={`h-full px-2 py-0.5 flex flex-col ${isRepeat ? 'bg-indigo-100 border border-indigo-200' : 'bg-blue-100 border border-blue-200'}`}>
-        <p className={`font-semibold truncate leading-tight ${isShort ? 'text-[10px]' : 'text-xs'} ${isRepeat ? 'text-indigo-900' : 'text-blue-900'}`}>
+      <div className={`h-full px-2 py-0.5 flex flex-col ${isRepeat ? 'bg-[var(--accent-light)] border border-[var(--accent-border)]' : 'bg-[var(--accent)] border border-[var(--accent)]'}`}>
+        <p className={`font-semibold truncate leading-tight ${isShort ? 'text-[10px]' : 'text-xs'} ${isRepeat ? 'text-[var(--accent)]' : 'text-white'}`}>
           {r.title}
         </p>
         {!isShort && (
-          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-indigo-600' : 'text-blue-600'}`}>
+          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-[var(--accent-mid)]' : 'text-gray-300'}`}>
             {r.start_time}–{r.end_time}
           </p>
         )}
         {!isShort && height >= 58 && r.reserver_name && (
-          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-indigo-500' : 'text-blue-500'}`}>
+          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-[var(--accent-mid)]' : 'text-gray-300'}`}>
             {r.reserver_name}
           </p>
         )}
         {!isShort && height >= 80 && r.purpose && (
-          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-indigo-400' : 'text-blue-400'}`}>
+          <p className={`text-[10px] leading-tight truncate ${isRepeat ? 'text-[var(--accent-mid)]' : 'text-gray-400'}`}>
             {r.purpose}
           </p>
         )}
@@ -73,6 +73,7 @@ interface Props {
   selectedDate: string;
   reservations: Reservation[];
   roomName?: string;
+  headerActions?: React.ReactNode;
   onReserveSlot: (hour: number) => void;
   onEditReservation: (reservation: Reservation) => void;
   onCancelReservation: (id: string) => void;
@@ -82,6 +83,7 @@ export default function TimeSlotTable({
   selectedDate,
   reservations,
   roomName = '회의실 현황',
+  headerActions,
   onReserveSlot,
   onEditReservation,
   onCancelReservation,
@@ -92,11 +94,16 @@ export default function TimeSlotTable({
   const hasAllDay = allDayRes.length > 0;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white overflow-hidden h-full flex flex-col">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-900">{roomName}</h2>
-        <span className="text-xs text-gray-400">1시간 단위 표시 · 30분 단위 예약</span>
+      <div className="pb-2 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{formatDateDisplay(selectedDate)}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="hidden sm:inline text-xs text-gray-400">1시간 단위 표시 · 30분 단위 예약</span>
+          {headerActions}
+        </div>
       </div>
 
       {/* All-day banner */}
@@ -105,11 +112,11 @@ export default function TimeSlotTable({
           {allDayRes.map(r => (
             <div
               key={r.reservation_id}
-              className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 group/allday"
+              className="bg-amber-50 border border-amber-200 rounded-sm px-3 py-2.5 group/allday"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded flex-shrink-0">
+                  <span className="text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-sm flex-shrink-0">
                     종일
                   </span>
                   <span className="text-sm font-semibold text-gray-900 truncate">{r.title}</span>
@@ -118,13 +125,13 @@ export default function TimeSlotTable({
                 <div className="flex items-center gap-1 flex-shrink-0 ml-2 opacity-0 group-hover/allday:opacity-100 transition-opacity">
                   <button
                     onClick={() => onEditReservation(r)}
-                    className="text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                    className="text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-2 py-0.5 rounded-sm transition-colors"
                   >
                     수정
                   </button>
                   <button
                     onClick={() => onCancelReservation(r.reservation_id)}
-                    className="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-0.5 rounded transition-colors"
+                    className="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-0.5 rounded-sm transition-colors"
                   >
                     취소
                   </button>
@@ -139,7 +146,7 @@ export default function TimeSlotTable({
       )}
 
       {/* Time grid */}
-      <div className="overflow-y-auto mt-1" style={{ maxHeight: '560px' }}>
+      <div className="overflow-y-auto flex-1 mt-1">
         <div className="flex">
           {/* Time labels */}
           <div className="flex-shrink-0 w-14 border-r border-gray-100">
@@ -159,6 +166,42 @@ export default function TimeSlotTable({
             className="flex-1 relative"
             style={{ height: TOTAL_H }}
           >
+            {/* Background decoration */}
+            <div className="absolute bottom-0 right-0 pointer-events-none z-0 opacity-30">
+              <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="120" cy="120" r="60" fill="#EDE9FE"/>
+                <circle cx="140" cy="100" r="30" fill="#F3E8FF"/>
+                <rect x="60" y="80" width="40" height="50" rx="2" fill="#7C3AED" opacity="0.3"/>
+                <rect x="70" y="70" width="20" height="15" rx="2" fill="#A78BFA" opacity="0.5"/>
+                <circle cx="50" cy="130" r="15" fill="#EC4899" opacity="0.4"/>
+                <circle cx="145" cy="145" r="20" fill="#F9A8D4" opacity="0.3"/>
+              </svg>
+            </div>
+
+            {/* Bottom fade gradient */}
+            <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white/60 to-transparent pointer-events-none z-5" />
+
+            {/* Empty state illustration */}
+            {timedRes.length === 0 && !hasAllDay && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="15" y="20" width="90" height="80" rx="2" fill="#EDE9FE"/>
+                  <rect x="15" y="20" width="90" height="18" rx="2" fill="#7C3AED"/>
+                  <rect x="28" y="10" width="8" height="18" rx="4" fill="#7C3AED"/>
+                  <rect x="84" y="10" width="8" height="18" rx="4" fill="#7C3AED"/>
+                  <rect x="27" y="52" width="20" height="4" rx="1" fill="#C4B5FD"/>
+                  <rect x="27" y="62" width="30" height="4" rx="1" fill="#C4B5FD"/>
+                  <rect x="27" y="72" width="15" height="4" rx="1" fill="#C4B5FD"/>
+                  <rect x="55" y="52" width="40" height="4" rx="1" fill="#DDD6FE"/>
+                  <rect x="55" y="62" width="35" height="4" rx="1" fill="#DDD6FE"/>
+                  <circle cx="88" cy="88" r="18" fill="#EC4899"/>
+                  <path d="M81 88 L86 93 L95 83" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <p className="text-sm font-medium text-[var(--accent-mid)] mt-2">예약 없음</p>
+                <p className="text-xs text-gray-300 mt-0.5">이 시간대에 예약이 없습니다</p>
+              </div>
+            )}
+
             {/* Hour divider lines + click-to-reserve */}
             {HOURS.map(h => (
               <div
@@ -168,11 +211,11 @@ export default function TimeSlotTable({
               >
                 {!hasAllDay && (
                   <button
-                    className="absolute inset-0 w-full hover:bg-blue-50/40 transition-colors z-0"
+                    className="absolute inset-0 w-full hover:bg-gray-50 transition-colors z-0"
                     onClick={() => onReserveSlot(h)}
                     title={`${pad(h)}:00 예약`}
                   >
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-blue-400 opacity-0 group-hover/hour:opacity-100 transition-opacity">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 opacity-0 group-hover/hour:opacity-100 transition-opacity">
                       + 예약
                     </span>
                   </button>

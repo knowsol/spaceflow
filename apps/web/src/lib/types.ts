@@ -4,6 +4,7 @@ export type ReservationStatus = 'confirmed' | 'cancelled';
 export interface Room {
   room_id: string;
   room_name: string;
+  color: string;       // hex color e.g. '#6d28d9'
   is_active: boolean;
   sort_order: number;
 }
