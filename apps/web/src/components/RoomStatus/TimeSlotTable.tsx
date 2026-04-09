@@ -101,32 +101,32 @@ export default function TimeSlotTable({
   const hasAllDay = allDayRes.length > 0;
 
   // 수평 스와이프 → 전날/다음날 (pull indicator — direct DOM, no React re-render)
-  const containerRef = useRef<HTMLDivElement>(null);
-  const indLeftRef   = useRef<HTMLDivElement>(null);
-  const indRightRef  = useRef<HTMLDivElement>(null);
+  // touch-action: pan-y 로 수직 스크롤은 브라우저, 수평 swipe는 JS가 처리
+  const containerRef  = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const indLeftRef    = useRef<HTMLDivElement>(null);
+  const indRightRef   = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = containerRef.current;
+    // touchmove 는 touch-action:pan-y 가 적용된 스크롤 영역에 붙임
+    const el = scrollAreaRef.current;
     if (!el) return;
     let startX = 0, startY = 0, tracking = false;
 
-    function getIndicator(left: boolean) {
-      return left ? indLeftRef.current : indRightRef.current;
-    }
     function hideAll(instant = true) {
       [indLeftRef.current, indRightRef.current].forEach(ind => {
         if (!ind) return;
         ind.style.transition = instant ? 'none' : 'transform 0.3s ease-out, opacity 0.3s ease-out';
-        ind.style.transform = 'translateY(-50%) scale(0)';
-        ind.style.opacity = '0';
+        ind.style.transform  = 'translateY(-50%) scale(0)';
+        ind.style.opacity    = '0';
       });
     }
     function updateIndicator(dx: number) {
-      const isLeft = dx > 0;
+      const isLeft   = dx > 0;
       const progress = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1.2);
       const reached  = Math.abs(dx) >= SWIPE_THRESHOLD;
-      const active   = getIndicator(isLeft);
-      const inactive = getIndicator(!isLeft);
+      const active   = isLeft ? indLeftRef.current  : indRightRef.current;
+      const inactive = isLeft ? indRightRef.current : indLeftRef.current;
 
       if (inactive) { inactive.style.transition = 'none'; inactive.style.opacity = '0'; inactive.style.transform = 'translateY(-50%) scale(0)'; }
       if (active) {
@@ -143,8 +143,8 @@ export default function TimeSlotTable({
     }
 
     function onStart(e: TouchEvent) {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
+      startX   = e.touches[0].clientX;
+      startY   = e.touches[0].clientY;
       tracking = true;
       hideAll(true);
     }
@@ -152,7 +152,8 @@ export default function TimeSlotTable({
       if (!tracking) return;
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      if (Math.abs(dx) < Math.abs(dy) && Math.abs(dx) < 8) return;
+      // 수직 움직임이 압도적으로 크면 무시
+      if (Math.abs(dy) > Math.abs(dx) * 2) return;
       updateIndicator(dx);
     }
     function onEnd(e: TouchEvent) {
@@ -164,16 +165,20 @@ export default function TimeSlotTable({
         hideAll(true);
         if (dx > 0) onPrevDay(); else onNextDay();
       } else {
-        hideAll(false); // snap-back with transition
+        hideAll(false);
       }
     }
-    el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchmove',  onMove,  { passive: true });
-    el.addEventListener('touchend',   onEnd,   { passive: true });
+    function onCancel() { tracking = false; hideAll(false); }
+
+    el.addEventListener('touchstart', onStart,  { passive: true });
+    el.addEventListener('touchmove',  onMove,   { passive: true });
+    el.addEventListener('touchend',   onEnd,    { passive: true });
+    el.addEventListener('touchcancel',onCancel, { passive: true });
     return () => {
-      el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchmove',  onMove);
-      el.removeEventListener('touchend',   onEnd);
+      el.removeEventListener('touchstart',  onStart);
+      el.removeEventListener('touchmove',   onMove);
+      el.removeEventListener('touchend',    onEnd);
+      el.removeEventListener('touchcancel', onCancel);
     };
   }, [onPrevDay, onNextDay]);
 
@@ -265,7 +270,7 @@ export default function TimeSlotTable({
             </svg>
           </div>
         </div>
-        <div className="overflow-y-auto h-full mt-1">
+        <div ref={scrollAreaRef} className="overflow-y-auto h-full mt-1" style={{ touchAction: 'pan-y' }}>
         <div className="flex">
           {/* Time labels */}
           <div className="flex-shrink-0 w-14 border-r border-gray-100">

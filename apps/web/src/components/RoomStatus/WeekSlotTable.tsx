@@ -185,7 +185,7 @@ export default function WeekSlotTable({
     function onMove(e: TouchEvent) {
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      if (Math.abs(dx) < Math.abs(dy) && Math.abs(dx) < 8) return;
+      if (Math.abs(dy) > Math.abs(dx) * 2) return;
       const maxScroll = el.scrollWidth - el.clientWidth;
       const atLeft  = startScrollLeft <= 0 && el.scrollLeft <= 0;
       const atRight = startScrollLeft >= maxScroll - 2 && el.scrollLeft >= maxScroll - 2;
@@ -207,13 +207,17 @@ export default function WeekSlotTable({
       }
       hideAll(false); // snap-back
     }
-    el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchmove',  onMove,  { passive: true });
-    el.addEventListener('touchend',   onEnd,   { passive: true });
+    function onCancel() { hideAll(false); }
+
+    el.addEventListener('touchstart',  onStart,  { passive: true });
+    el.addEventListener('touchmove',   onMove,   { passive: true });
+    el.addEventListener('touchend',    onEnd,    { passive: true });
+    el.addEventListener('touchcancel', onCancel, { passive: true });
     return () => {
-      el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchmove',  onMove);
-      el.removeEventListener('touchend',   onEnd);
+      el.removeEventListener('touchstart',  onStart);
+      el.removeEventListener('touchmove',   onMove);
+      el.removeEventListener('touchend',    onEnd);
+      el.removeEventListener('touchcancel', onCancel);
     };
   }, [onPrevWeek, onNextWeek]);
 
@@ -259,7 +263,7 @@ export default function WeekSlotTable({
             </svg>
           </div>
         </div>
-      <div ref={scrollRef} className="overflow-auto h-full">
+      <div ref={scrollRef} className="overflow-auto h-full" style={{ touchAction: 'pan-x pan-y' }}>
         <div style={{ minWidth: `${minW}px` }}>
 
           {/* ── Sticky day header row ── */}
