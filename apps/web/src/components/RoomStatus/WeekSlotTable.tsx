@@ -132,9 +132,12 @@ export default function WeekSlotTable({
     return `${fmt(s)} - ${fmt(e)}`;
   })();
 
+  const gridCols = `48px repeat(${colCount}, minmax(80px, 1fr))`;
+  const minW = 48 + colCount * 80;
+
   return (
     <div className="bg-white overflow-hidden h-full flex flex-col">
-      {/* Header */}
+      {/* Navigation header */}
       <div className="pb-2 border-b border-gray-100 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-1">
@@ -153,66 +156,72 @@ export default function WeekSlotTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto flex-1 flex flex-col min-h-0">
-        {/* Day header row */}
-        <div
-          className="grid border-b border-gray-100 bg-gray-50 sticky top-0 z-30"
-          style={{ gridTemplateColumns: `48px repeat(${colCount}, minmax(80px, 1fr))` }}
-        >
-          <div className="border-r border-gray-100" />
-          {dayData.map(({ date, dow }) => {
-            const d = parseDate(date);
-            const isToday = date === today;
-            const isSun = dow === 0;
-            const isSat = dow === 6;
-            return (
-              <div
-                key={date}
-                className={`text-center py-2.5 border-l border-gray-100 ${isToday ? 'bg-gray-50' : ''}`}
-              >
-                <p className={`text-[10px] font-medium ${isSun ? 'text-red-400' : 'text-gray-400'}`}>
-                  {DOW_LABEL[dow]}
-                </p>
-                <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center ${isToday ? 'bg-[var(--accent)]' : ''}`}>
-                  <span className={`text-sm font-semibold ${isToday ? 'text-white' : isSun ? 'text-red-500' : isSat ? 'text-gray-500' : 'text-gray-700'}`}>
-                    {d.getDate()}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* ── Single scroll container (both x and y) ── */}
+      <div className="overflow-auto flex-1 min-h-0">
+        <div style={{ minWidth: `${minW}px` }}>
 
-        {/* All-day row */}
-        {hasAnyAllDay && (
+          {/* ── Sticky day header row ── */}
           <div
-            className="grid border-b border-gray-100 bg-amber-50/60"
-            style={{ gridTemplateColumns: `48px repeat(${colCount}, minmax(80px, 1fr))` }}
+            className="grid sticky top-0 z-30 bg-gray-50 border-b border-gray-100"
+            style={{ gridTemplateColumns: gridCols }}
           >
-            <div className="flex items-center justify-end pr-2 py-1.5 border-r border-gray-100">
-              <span className="text-[10px] text-gray-400">종일</span>
-            </div>
-            {dayData.map(({ date, allDay }) => (
-              <div key={date} className="border-l border-gray-100 px-0.5 py-1 space-y-0.5 min-h-[28px]">
-                {allDay.map(r => (
-                  <div
-                    key={r.reservation_id}
-                    onClick={() => onEditReservation(r)}
-                    className="bg-amber-100 border border-amber-200 rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-amber-800 truncate cursor-pointer hover:bg-amber-200 transition-colors"
-                  >
-                    {r.title}
+            {/* Corner cell: sticky left AND top */}
+            <div className="sticky left-0 z-40 bg-gray-50 border-r border-gray-100" />
+            {dayData.map(({ date, dow }) => {
+              const d = parseDate(date);
+              const isToday = date === today;
+              const isSun = dow === 0;
+              const isSat = dow === 6;
+              return (
+                <div
+                  key={date}
+                  className={`text-center py-2.5 border-l border-gray-100 ${isToday ? 'bg-gray-50' : ''}`}
+                >
+                  <p className={`text-[10px] font-medium ${isSun ? 'text-red-400' : 'text-gray-400'}`}>
+                    {DOW_LABEL[dow]}
+                  </p>
+                  <div className={`mx-auto mt-0.5 w-7 h-7 rounded-full flex items-center justify-center ${isToday ? 'bg-[var(--accent)]' : ''}`}>
+                    <span className={`text-sm font-semibold ${isToday ? 'text-white' : isSun ? 'text-red-500' : isSat ? 'text-gray-500' : 'text-gray-700'}`}>
+                      {d.getDate()}
+                    </span>
                   </div>
-                ))}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
-        )}
 
-        {/* Time grid */}
-        <div className="overflow-y-auto flex-1">
-          <div className="flex" style={{ minWidth: `${48 + colCount * 80}px` }}>
-            {/* Time labels */}
-            <div className="flex-shrink-0 w-12 border-r border-gray-100">
+          {/* ── All-day row ── */}
+          {hasAnyAllDay && (
+            <div
+              className="grid border-b border-gray-100 bg-amber-50/60"
+              style={{ gridTemplateColumns: gridCols }}
+            >
+              <div className="sticky left-0 z-20 bg-amber-50 flex items-center justify-end pr-2 py-1.5 border-r border-gray-100">
+                <span className="text-[10px] text-gray-400">종일</span>
+              </div>
+              {dayData.map(({ date, allDay }) => (
+                <div key={date} className="border-l border-gray-100 px-0.5 py-1 space-y-0.5 min-h-[28px]">
+                  {allDay.map(r => (
+                    <div
+                      key={r.reservation_id}
+                      onClick={() => onEditReservation(r)}
+                      className="bg-amber-100 border border-amber-200 rounded-sm px-1.5 py-0.5 text-[10px] font-medium text-amber-800 truncate cursor-pointer hover:bg-amber-200 transition-colors"
+                    >
+                      {r.title}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Time grid: flat grid with sticky time column ── */}
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: gridCols }}
+          >
+            {/* Sticky time labels column */}
+            <div className="sticky left-0 z-20 bg-white border-r border-gray-100">
               {HOURS.map(h => (
                 <div
                   key={h}
@@ -225,64 +234,63 @@ export default function WeekSlotTable({
             </div>
 
             {/* Day columns */}
-            <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${colCount}, minmax(80px, 1fr))` }}>
-              {dayData.map(({ date, timed, dow }) => {
-                const isToday = date === today;
-                const isSat = dow === 6;
-                const isSun = dow === 0;
-                return (
-                  <div
-                    key={date}
-                    className={`relative border-l border-gray-100 ${
-                      isToday ? 'bg-gray-50/60' : isSat || isSun ? 'bg-gray-50/60' : ''
-                    }`}
-                    style={{ height: TOTAL_H }}
-                  >
-                    {/* Hour divider lines */}
-                    {HOURS.map(h => (
-                      <div
-                        key={h}
-                        className="absolute w-full border-b border-gray-100"
-                        style={{ top: (h - START_HOUR) * CELL_H, height: CELL_H }}
-                      />
-                    ))}
+            {dayData.map(({ date, timed, dow }) => {
+              const isToday = date === today;
+              const isSat = dow === 6;
+              const isSun = dow === 0;
+              return (
+                <div
+                  key={date}
+                  className={`relative border-l border-gray-100 ${
+                    isToday ? 'bg-gray-50/60' : isSat || isSun ? 'bg-gray-50/60' : ''
+                  }`}
+                  style={{ height: TOTAL_H }}
+                >
+                  {/* Hour divider lines */}
+                  {HOURS.map(h => (
+                    <div
+                      key={h}
+                      className="absolute w-full border-b border-gray-100"
+                      style={{ top: (h - START_HOUR) * CELL_H, height: CELL_H }}
+                    />
+                  ))}
 
-                    {/* Click-to-reserve overlays (per hour) */}
-                    {HOURS.map(h => (
-                      <button
-                        key={h}
-                        className="absolute w-full hover:bg-gray-50 transition-colors z-0"
-                        style={{ top: (h - START_HOUR) * CELL_H, height: CELL_H }}
-                        onClick={() => onReserveSlot(date, h)}
-                        title={`${pad(h)}:00 예약`}
-                      />
-                    ))}
+                  {/* Click-to-reserve overlays (per hour) */}
+                  {HOURS.map(h => (
+                    <button
+                      key={h}
+                      className="absolute w-full hover:bg-gray-50 transition-colors z-0"
+                      style={{ top: (h - START_HOUR) * CELL_H, height: CELL_H }}
+                      onClick={() => onReserveSlot(date, h)}
+                      title={`${pad(h)}:00 예약`}
+                    />
+                  ))}
 
-                    {/* Reservation blocks */}
-                    {timed.map(r => (
-                      <ResBlock
-                        key={r.reservation_id}
-                        reservation={r}
-                        onEdit={onEditReservation}
-                        onCancel={onCancelReservation}
-                      />
-                    ))}
+                  {/* Reservation blocks */}
+                  {timed.map(r => (
+                    <ResBlock
+                      key={r.reservation_id}
+                      reservation={r}
+                      onEdit={onEditReservation}
+                      onCancel={onCancelReservation}
+                    />
+                  ))}
 
-                    {/* Current time indicator */}
-                    {isToday && showNow && (
-                      <div
-                        className="absolute w-full z-20 pointer-events-none flex items-center"
-                        style={{ top: nowTop }}
-                      >
-                        <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 -translate-x-0.5" />
-                        <div className="flex-1 h-px bg-red-400" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  {/* Current time indicator */}
+                  {isToday && showNow && (
+                    <div
+                      className="absolute w-full z-20 pointer-events-none flex items-center"
+                      style={{ top: nowTop }}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 -translate-x-0.5" />
+                      <div className="flex-1 h-px bg-red-400" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
         </div>
       </div>
     </div>
