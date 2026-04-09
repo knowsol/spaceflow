@@ -123,11 +123,14 @@ export default function TimeSlotTable({
     function updateIndicator(dx: number) {
       const absDx   = Math.abs(dx);
       const isLeft  = dx > 0;
-      // sqrt 커브: 작은 이동에서도 빠르게 커짐
-      const progress = Math.min(Math.sqrt(absDx / SWIPE_THRESHOLD) * 1.1, 1.1);
-      const reached  = absDx >= SWIPE_THRESHOLD;
-      const active   = isLeft ? indLeftRef.current  : indRightRef.current;
-      const inactive = isLeft ? indRightRef.current : indLeftRef.current;
+      // sqrt 커브: 작은 이동에서도 빠르게 커짐 (max scale 1.0)
+      const scale        = Math.min(Math.sqrt(absDx / SWIPE_THRESHOLD), 1.0);
+      const colorT       = Math.min(absDx / SWIPE_THRESHOLD, 1);          // 0→1 색상 보간
+      const overT        = Math.max(absDx - SWIPE_THRESHOLD, 0) / SWIPE_THRESHOLD;
+      const nudge        = Math.min(overT * 8, 5);                         // 최대 5px 뒤로
+      const nudgeX       = isLeft ? -nudge : nudge;
+      const active       = isLeft ? indLeftRef.current  : indRightRef.current;
+      const inactive     = isLeft ? indRightRef.current : indLeftRef.current;
 
       if (inactive) {
         inactive.style.transition = 'none';
@@ -136,13 +139,21 @@ export default function TimeSlotTable({
       }
       if (active) {
         active.style.transition = 'none';
-        active.style.opacity    = String(Math.min(progress, 1));
-        active.style.transform  = `translateY(-50%) scale(${progress})`;
+        active.style.opacity    = String(Math.min(scale * 1.3, 1));
+        active.style.transform  = `translateY(-50%) translateX(${nudgeX}px) scale(${scale})`;
         const inner = active.firstElementChild as HTMLElement | null;
         if (inner) {
-          inner.style.backgroundColor = reached ? 'var(--accent)' : 'white';
-          inner.style.color           = reached ? 'white' : '#9ca3af';
-          inner.style.borderColor     = reached ? 'transparent' : '#f3f4f6';
+          // 흰색(255,255,255) → accent(109,40,217) 부드럽게 보간
+          const r = Math.round(255 + (109 - 255) * colorT);
+          const g = Math.round(255 + (40  - 255) * colorT);
+          const b = Math.round(255 + (217 - 255) * colorT);
+          // 아이콘: gray(156,163,175) → white(255,255,255)
+          const ic = Math.round(156 + (255 - 156) * colorT);
+          const ig = Math.round(163 + (255 - 163) * colorT);
+          const ib = Math.round(175 + (255 - 175) * colorT);
+          inner.style.backgroundColor = `rgb(${r},${g},${b})`;
+          inner.style.color           = `rgb(${ic},${ig},${ib})`;
+          inner.style.borderColor     = `rgba(0,0,0,${(1 - colorT) * 0.1})`;
         }
       }
     }
@@ -264,18 +275,18 @@ export default function TimeSlotTable({
         {/* Pull indicators — always in DOM, controlled via ref (direct DOM) */}
         <div ref={indLeftRef} className="absolute left-[10px] top-1/2 z-20 pointer-events-none"
           style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}>
-          <div className="w-11 h-11 rounded-full shadow-xl flex items-center justify-center border"
-            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: '#f3f4f6' }}>
-            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+          <div className="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border"
+            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: 'rgba(0,0,0,0.1)' }}>
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
               <path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" />
             </svg>
           </div>
         </div>
         <div ref={indRightRef} className="absolute right-[10px] top-1/2 z-20 pointer-events-none"
           style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}>
-          <div className="w-11 h-11 rounded-full shadow-xl flex items-center justify-center border"
-            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: '#f3f4f6' }}>
-            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+          <div className="w-9 h-9 rounded-full shadow-lg flex items-center justify-center border"
+            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: 'rgba(0,0,0,0.1)' }}>
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
               <path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
             </svg>
           </div>
