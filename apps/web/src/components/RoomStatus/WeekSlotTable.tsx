@@ -183,6 +183,7 @@ export default function WeekSlotTable({
     }
 
     function onStart(e: TouchEvent) {
+      if (!el) return;
       const rect  = el.getBoundingClientRect();
       const touch = e.touches[0];
       if (touch.clientX < rect.left || touch.clientX > rect.right ||
