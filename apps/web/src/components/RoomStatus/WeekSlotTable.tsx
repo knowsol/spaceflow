@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 
 const SWIPE_THRESHOLD = 50; // px
 import { Reservation } from '@/lib/types';
@@ -137,48 +137,75 @@ export default function WeekSlotTable({
   const gridCols = `48px repeat(${colCount}, minmax(80px, 1fr))`;
   const minW = 48 + colCount * 80;
 
-  // 스크롤 끝에서 추가 스와이프 → 이전주/다음주 (pull indicator)
-  const [swipeDelta, setSwipeDelta] = useState(0);
-  const [releasing, setReleasing] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // 스크롤 끝에서 추가 스와이프 → 이전주/다음주 (pull indicator — direct DOM)
+  const scrollRef   = useRef<HTMLDivElement>(null);
+  const indLeftRef  = useRef<HTMLDivElement>(null);
+  const indRightRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let startX = 0, startY = 0, startScrollLeft = 0, edgeDir = 0;
+    let startX = 0, startY = 0, startScrollLeft = 0;
+
+    function hideAll(instant = true) {
+      [indLeftRef.current, indRightRef.current].forEach(ind => {
+        if (!ind) return;
+        ind.style.transition = instant ? 'none' : 'transform 0.3s ease-out, opacity 0.3s ease-out';
+        ind.style.transform  = 'translateY(-50%) scale(0)';
+        ind.style.opacity    = '0';
+      });
+    }
+    function updateIndicator(dx: number) {
+      const isLeft   = dx > 0;
+      const progress = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1.2);
+      const reached  = Math.abs(dx) >= SWIPE_THRESHOLD;
+      const active   = isLeft ? indLeftRef.current  : indRightRef.current;
+      const inactive = isLeft ? indRightRef.current : indLeftRef.current;
+
+      if (inactive) { inactive.style.transition = 'none'; inactive.style.opacity = '0'; inactive.style.transform = 'translateY(-50%) scale(0)'; }
+      if (active) {
+        active.style.transition = 'none';
+        active.style.opacity    = String(Math.min(progress * 1.5, 1));
+        active.style.transform  = `translateY(-50%) scale(${progress})`;
+        const inner = active.firstElementChild as HTMLElement | null;
+        if (inner) {
+          inner.style.backgroundColor = reached ? 'var(--accent)' : 'white';
+          inner.style.color           = reached ? 'white' : '#9ca3af';
+          inner.style.borderColor     = reached ? 'transparent' : '#f3f4f6';
+        }
+      }
+    }
+
     function onStart(e: TouchEvent) {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
-      startScrollLeft = el!.scrollLeft;
-      edgeDir = 0;
-      setReleasing(false);
+      startScrollLeft = el.scrollLeft;
+      hideAll(true);
     }
     function onMove(e: TouchEvent) {
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      if (Math.abs(dx) < Math.abs(dy) && Math.abs(dx) < 10) return;
-      const maxScroll = el!.scrollWidth - el!.clientWidth;
-      const atLeft  = startScrollLeft <= 0 && el!.scrollLeft <= 0;
-      const atRight = startScrollLeft >= maxScroll - 2 && el!.scrollLeft >= maxScroll - 2;
+      if (Math.abs(dx) < Math.abs(dy) && Math.abs(dx) < 8) return;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      const atLeft  = startScrollLeft <= 0 && el.scrollLeft <= 0;
+      const atRight = startScrollLeft >= maxScroll - 2 && el.scrollLeft >= maxScroll - 2;
       if ((dx > 0 && atLeft) || (dx < 0 && atRight)) {
-        edgeDir = dx > 0 ? 1 : -1;
-        setSwipeDelta(dx);
+        updateIndicator(dx);
       } else {
-        if (edgeDir !== 0) setSwipeDelta(0);
+        hideAll(true);
       }
     }
     function onEnd(e: TouchEvent) {
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
       if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) >= Math.abs(dy)) {
-        const maxScroll = el!.scrollWidth - el!.clientWidth;
-        const atLeft  = startScrollLeft <= 0 && el!.scrollLeft <= 0;
-        const atRight = startScrollLeft >= maxScroll - 2 && el!.scrollLeft >= maxScroll - 2;
-        if (dx > 0 && atLeft)  { setSwipeDelta(0); onPrevWeek(); return; }
-        if (dx < 0 && atRight) { setSwipeDelta(0); onNextWeek(); return; }
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        const atLeft  = startScrollLeft <= 0 && el.scrollLeft <= 0;
+        const atRight = startScrollLeft >= maxScroll - 2 && el.scrollLeft >= maxScroll - 2;
+        if (dx > 0 && atLeft)  { hideAll(true); onPrevWeek(); return; }
+        if (dx < 0 && atRight) { hideAll(true); onNextWeek(); return; }
       }
-      setReleasing(true);
-      setSwipeDelta(0);
-      edgeDir = 0;
+      hideAll(false); // snap-back
     }
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove',  onMove,  { passive: true });
@@ -213,34 +240,25 @@ export default function WeekSlotTable({
 
       {/* ── Single scroll container (both x and y) ── */}
       <div className="relative flex-1 min-h-0">
-        {/* Pull indicator */}
-        {swipeDelta !== 0 && (() => {
-          const progress = Math.min(Math.abs(swipeDelta) / SWIPE_THRESHOLD, 1.2);
-          const reached = Math.abs(swipeDelta) >= SWIPE_THRESHOLD;
-          const isLeft = swipeDelta > 0;
-          return (
-            <div
-              className="absolute top-1/2 z-30 pointer-events-none"
-              style={{
-                [isLeft ? 'left' : 'right']: '10px',
-                transform: `translateY(-50%) scale(${progress})`,
-                opacity: Math.min(progress * 1.4, 1),
-                transition: releasing ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : 'none',
-              }}
-            >
-              <div className={`w-11 h-11 rounded-full shadow-xl flex items-center justify-center transition-colors duration-100 ${
-                reached ? 'bg-[var(--accent)] text-white' : 'bg-white text-gray-400 border border-gray-100'
-              }`}>
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                  {isLeft
-                    ? <path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" />
-                    : <path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
-                  }
-                </svg>
-              </div>
-            </div>
-          );
-        })()}
+        {/* Pull indicators — always in DOM, controlled via ref */}
+        <div ref={indLeftRef} className="absolute left-[10px] top-1/2 z-30 pointer-events-none"
+          style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}>
+          <div className="w-11 h-11 rounded-full shadow-xl flex items-center justify-center border"
+            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: '#f3f4f6' }}>
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <div ref={indRightRef} className="absolute right-[10px] top-1/2 z-30 pointer-events-none"
+          style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}>
+          <div className="w-11 h-11 rounded-full shadow-xl flex items-center justify-center border"
+            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: '#f3f4f6' }}>
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
       <div ref={scrollRef} className="overflow-auto h-full">
         <div style={{ minWidth: `${minW}px` }}>
 

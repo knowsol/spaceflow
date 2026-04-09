@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import { Reservation } from '@/lib/types';
 import { getReservationsForDate, timeToMinutes, formatDateDisplay } from '@/lib/reservationLogic';
 
@@ -100,47 +100,80 @@ export default function TimeSlotTable({
   const timedRes = dayReservations.filter(r => !r.all_day && r.status === 'confirmed');
   const hasAllDay = allDayRes.length > 0;
 
-  // 수평 스와이프 → 전날/다음날 (pull indicator)
-  const [swipeDelta, setSwipeDelta] = useState(0);
-  const [releasing, setReleasing] = useState(false);
+  // 수평 스와이프 → 전날/다음날 (pull indicator — direct DOM, no React re-render)
   const containerRef = useRef<HTMLDivElement>(null);
+  const indLeftRef   = useRef<HTMLDivElement>(null);
+  const indRightRef  = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     let startX = 0, startY = 0, tracking = false;
+
+    function getIndicator(left: boolean) {
+      return left ? indLeftRef.current : indRightRef.current;
+    }
+    function hideAll(instant = true) {
+      [indLeftRef.current, indRightRef.current].forEach(ind => {
+        if (!ind) return;
+        ind.style.transition = instant ? 'none' : 'transform 0.3s ease-out, opacity 0.3s ease-out';
+        ind.style.transform = 'translateY(-50%) scale(0)';
+        ind.style.opacity = '0';
+      });
+    }
+    function updateIndicator(dx: number) {
+      const isLeft = dx > 0;
+      const progress = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1.2);
+      const reached  = Math.abs(dx) >= SWIPE_THRESHOLD;
+      const active   = getIndicator(isLeft);
+      const inactive = getIndicator(!isLeft);
+
+      if (inactive) { inactive.style.transition = 'none'; inactive.style.opacity = '0'; inactive.style.transform = 'translateY(-50%) scale(0)'; }
+      if (active) {
+        active.style.transition = 'none';
+        active.style.opacity    = String(Math.min(progress * 1.5, 1));
+        active.style.transform  = `translateY(-50%) scale(${progress})`;
+        const inner = active.firstElementChild as HTMLElement | null;
+        if (inner) {
+          inner.style.backgroundColor = reached ? 'var(--accent)' : 'white';
+          inner.style.color           = reached ? 'white' : '#9ca3af';
+          inner.style.borderColor     = reached ? 'transparent' : '#f3f4f6';
+        }
+      }
+    }
+
     function onStart(e: TouchEvent) {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       tracking = true;
-      setReleasing(false);
+      hideAll(true);
     }
     function onMove(e: TouchEvent) {
       if (!tracking) return;
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      // Only track if more horizontal than vertical
-      if (Math.abs(dx) < Math.abs(dy) && Math.abs(dx) < 10) return;
-      setSwipeDelta(dx);
+      if (Math.abs(dx) < Math.abs(dy) && Math.abs(dx) < 8) return;
+      updateIndicator(dx);
     }
     function onEnd(e: TouchEvent) {
+      if (!tracking) return;
       tracking = false;
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
       if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) >= Math.abs(dy)) {
-        setSwipeDelta(0);
+        hideAll(true);
         if (dx > 0) onPrevDay(); else onNextDay();
       } else {
-        setReleasing(true);
-        setSwipeDelta(0);
+        hideAll(false); // snap-back with transition
       }
     }
     el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchmove', onMove, { passive: true });
-    el.addEventListener('touchend', onEnd, { passive: true });
+    el.addEventListener('touchmove',  onMove,  { passive: true });
+    el.addEventListener('touchend',   onEnd,   { passive: true });
     return () => {
       el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchmove', onMove);
-      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchmove',  onMove);
+      el.removeEventListener('touchend',   onEnd);
     };
   }, [onPrevDay, onNextDay]);
 
@@ -213,34 +246,25 @@ export default function TimeSlotTable({
 
       {/* Time grid */}
       <div className="relative flex-1 min-h-0">
-        {/* Pull indicator */}
-        {swipeDelta !== 0 && (() => {
-          const progress = Math.min(Math.abs(swipeDelta) / SWIPE_THRESHOLD, 1.2);
-          const reached = Math.abs(swipeDelta) >= SWIPE_THRESHOLD;
-          const isLeft = swipeDelta > 0;
-          return (
-            <div
-              className="absolute top-1/2 z-20 pointer-events-none"
-              style={{
-                [isLeft ? 'left' : 'right']: '10px',
-                transform: `translateY(-50%) scale(${progress})`,
-                opacity: Math.min(progress * 1.4, 1),
-                transition: releasing ? 'transform 0.25s ease-out, opacity 0.25s ease-out' : 'none',
-              }}
-            >
-              <div className={`w-11 h-11 rounded-full shadow-xl flex items-center justify-center transition-colors duration-100 ${
-                reached ? 'bg-[var(--accent)] text-white' : 'bg-white text-gray-400 border border-gray-100'
-              }`}>
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
-                  {isLeft
-                    ? <path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" />
-                    : <path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
-                  }
-                </svg>
-              </div>
-            </div>
-          );
-        })()}
+        {/* Pull indicators — always in DOM, controlled via ref (direct DOM) */}
+        <div ref={indLeftRef} className="absolute left-[10px] top-1/2 z-20 pointer-events-none"
+          style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}>
+          <div className="w-11 h-11 rounded-full shadow-xl flex items-center justify-center border"
+            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: '#f3f4f6' }}>
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
+        <div ref={indRightRef} className="absolute right-[10px] top-1/2 z-20 pointer-events-none"
+          style={{ opacity: 0, transform: 'translateY(-50%) scale(0)' }}>
+          <div className="w-11 h-11 rounded-full shadow-xl flex items-center justify-center border"
+            style={{ backgroundColor: 'white', color: '#9ca3af', borderColor: '#f3f4f6' }}>
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5">
+              <path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" />
+            </svg>
+          </div>
+        </div>
         <div className="overflow-y-auto h-full mt-1">
         <div className="flex">
           {/* Time labels */}
