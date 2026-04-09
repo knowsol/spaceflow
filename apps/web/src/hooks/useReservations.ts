@@ -46,24 +46,10 @@ export function useReservations() {
     const repo = getRepository();
     (async () => {
       try {
-        // Sheets 모드인 경우 탭 자동 초기화 (없는 탭만 생성, 있으면 무시)
-        const s = loadSettings();
-        if (s.sheet.enabled && s.sheet.sheetId) {
-          try {
-            await fetch('/api/sheets/init', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sheetId: s.sheet.sheetId }),
-            });
-          } catch {
-            // init 실패는 non-fatal — 이미 초기화된 경우 무시
-          }
-        }
-
-        let [res, rm, hist] = await Promise.all([
+        // 예약 + 공간만 먼저 로드 (history는 지연 로드)
+        let [res, rm] = await Promise.all([
           repo.getReservations(),
           repo.getRooms(),
-          repo.getHistory(),
         ]);
 
         // 회의실이 하나도 없으면 기본 회의실 자동 생성 (mock 모드 전용)
@@ -83,7 +69,9 @@ export function useReservations() {
 
         setReservations(res);
         setRooms(rm);
-        setHistory(hist);
+
+        // history는 백그라운드에서 로드 (UI 블로킹 없음)
+        repo.getHistory().then(hist => setHistory(hist)).catch(() => {});
       } catch {
         // 데이터 로드 실패 시에도 로딩 해제 (무한 로딩 방지)
       } finally {
