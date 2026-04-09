@@ -25,6 +25,36 @@ export default function RightPanel({ open, onClose, width = 'sm:w-[480px]', chil
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Android 뒤로가기 키 처리:
+  // 패널이 열릴 때 history에 항목을 추가해두고,
+  // popstate(뒤로가기) 이벤트 발생 시 패널을 닫음.
+  // X / 백드롭으로 닫을 경우에는 history.go(-1)로 추가한 항목을 정리.
+  const pushedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !open) return;
+
+    window.history.pushState({ panel: true }, '');
+    pushedRef.current = true;
+
+    function handlePopState() {
+      pushedRef.current = false; // 뒤로가기로 닫힘 → go(-1) 불필요
+      onCloseRef.current();
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      // X / 백드롭 등으로 닫힐 때 → 직접 push한 항목 제거
+      if (pushedRef.current) {
+        pushedRef.current = false;
+        window.history.go(-1);
+      }
+    };
+  }, [open]);
+
   // 열릴 때 body 스크롤 잠금
   useEffect(() => {
     if (open) {
