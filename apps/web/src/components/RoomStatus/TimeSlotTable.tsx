@@ -149,6 +149,7 @@ export default function TimeSlotTable({
 
     // touchstart: 스크롤 영역 내 터치만 추적
     function onStart(e: TouchEvent) {
+      if (!scrollEl) return;
       const rect  = scrollEl.getBoundingClientRect();
       const touch = e.touches[0];
       if (touch.clientX < rect.left || touch.clientX > rect.right ||
