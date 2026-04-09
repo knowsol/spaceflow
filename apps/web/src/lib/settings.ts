@@ -25,7 +25,7 @@ export interface AppSettings {
  * NEXT_PUBLIC_DEFAULT_SHEET_ID 환경변수에 Sheet ID를 설정하세요.
  * 설정된 경우 모든 사용자가 해당 Sheet를 자동으로 사용합니다.
  */
-export const PRESET_SHEET_ID: string = process.env.NEXT_PUBLIC_DEFAULT_SHEET_ID ?? '';
+export const PRESET_SHEET_ID: string = (process.env.NEXT_PUBLIC_DEFAULT_SHEET_ID ?? '').trim();
 
 export const DEFAULT_SETTINGS: AppSettings = {
   workDays: [1, 2, 3, 4, 5],
