@@ -138,6 +138,7 @@ export default function WeekSlotTable({
   const minW = 48 + colCount * 80;
 
   // 스크롤 끝에서 추가 스와이프 → 이전주/다음주 (pull indicator — direct DOM)
+  // window 레벨 touchmove: Android Chrome native scroll 중에도 항상 이벤트 수신
   const scrollRef   = useRef<HTMLDivElement>(null);
   const indLeftRef  = useRef<HTMLDivElement>(null);
   const indRightRef = useRef<HTMLDivElement>(null);
@@ -145,7 +146,7 @@ export default function WeekSlotTable({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let startX = 0, startY = 0, startScrollLeft = 0;
+    let startX = 0, startY = 0, startScrollLeft = 0, tracking = false;
 
     function hideAll(instant = true) {
       [indLeftRef.current, indRightRef.current].forEach(ind => {
@@ -156,16 +157,21 @@ export default function WeekSlotTable({
       });
     }
     function updateIndicator(dx: number) {
-      const isLeft   = dx > 0;
-      const progress = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1.2);
-      const reached  = Math.abs(dx) >= SWIPE_THRESHOLD;
+      const absDx  = Math.abs(dx);
+      const isLeft = dx > 0;
+      const progress = Math.min(Math.sqrt(absDx / SWIPE_THRESHOLD) * 1.1, 1.1);
+      const reached  = absDx >= SWIPE_THRESHOLD;
       const active   = isLeft ? indLeftRef.current  : indRightRef.current;
       const inactive = isLeft ? indRightRef.current : indLeftRef.current;
 
-      if (inactive) { inactive.style.transition = 'none'; inactive.style.opacity = '0'; inactive.style.transform = 'translateY(-50%) scale(0)'; }
+      if (inactive) {
+        inactive.style.transition = 'none';
+        inactive.style.opacity    = '0';
+        inactive.style.transform  = 'translateY(-50%) scale(0)';
+      }
       if (active) {
         active.style.transition = 'none';
-        active.style.opacity    = String(Math.min(progress * 1.5, 1));
+        active.style.opacity    = String(Math.min(progress, 1));
         active.style.transform  = `translateY(-50%) scale(${progress})`;
         const inner = active.firstElementChild as HTMLElement | null;
         if (inner) {
@@ -177,15 +183,21 @@ export default function WeekSlotTable({
     }
 
     function onStart(e: TouchEvent) {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
+      const rect  = el.getBoundingClientRect();
+      const touch = e.touches[0];
+      if (touch.clientX < rect.left || touch.clientX > rect.right ||
+          touch.clientY < rect.top  || touch.clientY > rect.bottom) return;
+      startX          = touch.clientX;
+      startY          = touch.clientY;
       startScrollLeft = el.scrollLeft;
+      tracking        = true;
       hideAll(true);
     }
     function onMove(e: TouchEvent) {
+      if (!tracking) return;
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      if (Math.abs(dy) > Math.abs(dx) * 2) return;
+      if (Math.abs(dy) > Math.abs(dx) * 2.5) { hideAll(true); return; }
       const maxScroll = el.scrollWidth - el.clientWidth;
       const atLeft  = startScrollLeft <= 0 && el.scrollLeft <= 0;
       const atRight = startScrollLeft >= maxScroll - 2 && el.scrollLeft >= maxScroll - 2;
@@ -196,6 +208,8 @@ export default function WeekSlotTable({
       }
     }
     function onEnd(e: TouchEvent) {
+      if (!tracking) return;
+      tracking = false;
       const dx = e.changedTouches[0].clientX - startX;
       const dy = e.changedTouches[0].clientY - startY;
       if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) >= Math.abs(dy)) {
@@ -205,19 +219,19 @@ export default function WeekSlotTable({
         if (dx > 0 && atLeft)  { hideAll(true); onPrevWeek(); return; }
         if (dx < 0 && atRight) { hideAll(true); onNextWeek(); return; }
       }
-      hideAll(false); // snap-back
+      hideAll(false);
     }
-    function onCancel() { hideAll(false); }
+    function onCancel() { if (!tracking) return; tracking = false; hideAll(false); }
 
     el.addEventListener('touchstart',  onStart,  { passive: true });
-    el.addEventListener('touchmove',   onMove,   { passive: true });
-    el.addEventListener('touchend',    onEnd,    { passive: true });
-    el.addEventListener('touchcancel', onCancel, { passive: true });
+    window.addEventListener('touchmove',   onMove,   { passive: true });
+    window.addEventListener('touchend',    onEnd,    { passive: true });
+    window.addEventListener('touchcancel', onCancel, { passive: true });
     return () => {
       el.removeEventListener('touchstart',  onStart);
-      el.removeEventListener('touchmove',   onMove);
-      el.removeEventListener('touchend',    onEnd);
-      el.removeEventListener('touchcancel', onCancel);
+      window.removeEventListener('touchmove',   onMove);
+      window.removeEventListener('touchend',    onEnd);
+      window.removeEventListener('touchcancel', onCancel);
     };
   }, [onPrevWeek, onNextWeek]);
 

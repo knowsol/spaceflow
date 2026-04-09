@@ -100,17 +100,16 @@ export default function TimeSlotTable({
   const timedRes = dayReservations.filter(r => !r.all_day && r.status === 'confirmed');
   const hasAllDay = allDayRes.length > 0;
 
-  // 수평 스와이프 → 전날/다음날 (pull indicator — direct DOM, no React re-render)
-  // touch-action: pan-y 로 수직 스크롤은 브라우저, 수평 swipe는 JS가 처리
+  // 수평 스와이프 → 전날/다음날 (pull indicator — direct DOM)
+  // window 레벨 touchmove: Android Chrome native scroll 중에도 항상 이벤트 수신
   const containerRef  = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const indLeftRef    = useRef<HTMLDivElement>(null);
   const indRightRef   = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // touchmove 는 touch-action:pan-y 가 적용된 스크롤 영역에 붙임
-    const el = scrollAreaRef.current;
-    if (!el) return;
+    const scrollEl = scrollAreaRef.current;
+    if (!scrollEl) return;
     let startX = 0, startY = 0, tracking = false;
 
     function hideAll(instant = true) {
@@ -122,16 +121,22 @@ export default function TimeSlotTable({
       });
     }
     function updateIndicator(dx: number) {
-      const isLeft   = dx > 0;
-      const progress = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1.2);
-      const reached  = Math.abs(dx) >= SWIPE_THRESHOLD;
+      const absDx   = Math.abs(dx);
+      const isLeft  = dx > 0;
+      // sqrt 커브: 작은 이동에서도 빠르게 커짐
+      const progress = Math.min(Math.sqrt(absDx / SWIPE_THRESHOLD) * 1.1, 1.1);
+      const reached  = absDx >= SWIPE_THRESHOLD;
       const active   = isLeft ? indLeftRef.current  : indRightRef.current;
       const inactive = isLeft ? indRightRef.current : indLeftRef.current;
 
-      if (inactive) { inactive.style.transition = 'none'; inactive.style.opacity = '0'; inactive.style.transform = 'translateY(-50%) scale(0)'; }
+      if (inactive) {
+        inactive.style.transition = 'none';
+        inactive.style.opacity    = '0';
+        inactive.style.transform  = 'translateY(-50%) scale(0)';
+      }
       if (active) {
         active.style.transition = 'none';
-        active.style.opacity    = String(Math.min(progress * 1.5, 1));
+        active.style.opacity    = String(Math.min(progress, 1));
         active.style.transform  = `translateY(-50%) scale(${progress})`;
         const inner = active.firstElementChild as HTMLElement | null;
         if (inner) {
@@ -142,18 +147,23 @@ export default function TimeSlotTable({
       }
     }
 
+    // touchstart: 스크롤 영역 내 터치만 추적
     function onStart(e: TouchEvent) {
-      startX   = e.touches[0].clientX;
-      startY   = e.touches[0].clientY;
+      const rect  = scrollEl.getBoundingClientRect();
+      const touch = e.touches[0];
+      if (touch.clientX < rect.left || touch.clientX > rect.right ||
+          touch.clientY < rect.top  || touch.clientY > rect.bottom) return;
+      startX   = touch.clientX;
+      startY   = touch.clientY;
       tracking = true;
       hideAll(true);
     }
+    // touchmove / touchend / touchcancel: window 에 붙여 native scroll 중에도 수신
     function onMove(e: TouchEvent) {
       if (!tracking) return;
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      // 수직 움직임이 압도적으로 크면 무시
-      if (Math.abs(dy) > Math.abs(dx) * 2) return;
+      if (Math.abs(dy) > Math.abs(dx) * 2.5) { hideAll(true); return; }
       updateIndicator(dx);
     }
     function onEnd(e: TouchEvent) {
@@ -168,17 +178,17 @@ export default function TimeSlotTable({
         hideAll(false);
       }
     }
-    function onCancel() { tracking = false; hideAll(false); }
+    function onCancel() { if (!tracking) return; tracking = false; hideAll(false); }
 
-    el.addEventListener('touchstart', onStart,  { passive: true });
-    el.addEventListener('touchmove',  onMove,   { passive: true });
-    el.addEventListener('touchend',   onEnd,    { passive: true });
-    el.addEventListener('touchcancel',onCancel, { passive: true });
+    scrollEl.addEventListener('touchstart', onStart, { passive: true });
+    window.addEventListener('touchmove',   onMove,  { passive: true });
+    window.addEventListener('touchend',    onEnd,   { passive: true });
+    window.addEventListener('touchcancel', onCancel,{ passive: true });
     return () => {
-      el.removeEventListener('touchstart',  onStart);
-      el.removeEventListener('touchmove',   onMove);
-      el.removeEventListener('touchend',    onEnd);
-      el.removeEventListener('touchcancel', onCancel);
+      scrollEl.removeEventListener('touchstart', onStart);
+      window.removeEventListener('touchmove',   onMove);
+      window.removeEventListener('touchend',    onEnd);
+      window.removeEventListener('touchcancel', onCancel);
     };
   }, [onPrevDay, onNextDay]);
 
