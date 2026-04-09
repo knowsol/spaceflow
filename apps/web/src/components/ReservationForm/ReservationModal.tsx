@@ -164,20 +164,17 @@ export default function ReservationModal(props: Props) {
   // 모달이 열릴 때마다 form 초기화 (슬롯 클릭 시 시간이 반영되도록)
   useEffect(() => {
     if (!open) return;
-    setForm(isEdit ? reservationToForm(editTarget!) : defaultForm(props.initialData));
+    const base = isEdit ? reservationToForm(editTarget!) : defaultForm(props.initialData);
+    // create 모드일 때 저장된 이름 자동 세팅
+    if (!isEdit && savedName && !base.reserver_name) {
+      base.reserver_name = savedName;
+    }
+    setForm(base);
     setErrors({});
     setConflicts(null);
     setSubmitError(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-
-  // 저장된 이름 초기 세팅 (create 모드이고 아직 입력 안 했을 때만)
-  useEffect(() => {
-    if (!isEdit && savedName && !form.reserver_name) {
-      setForm(prev => ({ ...prev, reserver_name: savedName }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedName]);
 
   const room = activeRooms.find(r => r.room_id === roomId) ?? activeRooms[0];
 
