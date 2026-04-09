@@ -36,11 +36,13 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
           key={c}
           type="button"
           onClick={() => onChange(c)}
-          className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex-shrink-0"
+          className="w-6 h-6 rounded-full transition-transform hover:scale-110 flex-shrink-0"
           style={{
             backgroundColor: c,
-            borderColor: value === c ? '#111' : 'transparent',
-            boxShadow: value === c ? '0 0 0 1px #fff inset' : undefined,
+            // 선택: 흰 갭 + 동일 색 외곽 링 → 라이트/다크 모드 모두 가시
+            boxShadow: value === c
+              ? `0 0 0 2px #fff, 0 0 0 4px ${c}`
+              : '0 0 0 1px rgba(0,0,0,0.15)',
           }}
           title={c}
         />
@@ -90,6 +92,7 @@ export default function SettingsModal({
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomColor, setNewRoomColor] = useState('#6d28d9');
   const [roomLoading, setRoomLoading] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
@@ -181,10 +184,10 @@ export default function SettingsModal({
   }
 
   async function handleDeleteRoom(id: string) {
-    if (rooms.length <= 1) return; // 최소 1개 보호
-    if (!confirm('이 공간을 삭제하시겠습니까? 기존 예약은 유지됩니다.')) return;
+    if (rooms.length <= 1) return;
     setRoomLoading(true);
     await onDeleteRoom(id);
+    setPendingDeleteId(null);
     setRoomLoading(false);
   }
 
@@ -460,47 +463,66 @@ export default function SettingsModal({
                           </div>
                           {/* 포인트 컬러 스와치 */}
                           <div
-                            className="w-4 h-4 rounded-full flex-shrink-0 ring-1 ring-black/10"
-                            style={{ backgroundColor: room.color || '#6d28d9' }}
+                            className="w-4 h-4 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor: room.color || '#6d28d9',
+                              boxShadow: '0 0 0 1px rgba(0,0,0,0.2)',
+                            }}
                           />
                           <span className="flex-1 text-sm text-gray-800 font-medium">{room.room_name}</span>
                           {!room.is_active && (
                             <span className="text-[10px] text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded-sm">비활성</span>
                           )}
-                          <div className="flex items-center gap-0.5 flex-shrink-0">
-                            <button
-                              onClick={() => { setEditingRoomId(room.room_id); setEditingName(room.room_name); setEditingColor(room.color || '#6d28d9'); }}
-                              className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-sm transition-colors"
-                              title="수정"
-                            >
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                                <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleToggleActive(room)}
-                              className={`p-1.5 rounded-sm transition-colors ${room.is_active ? 'text-green-500 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-200'}`}
-                              title={room.is_active ? '비활성화' : '활성화'}
-                            >
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                                {room.is_active
-                                  ? <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 1.854 7.146a.5.5 0 1 0-.708.708l3.5 3.5a.5.5 0 0 0 .708 0l7-7z"/>
-                                  : <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                                }
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteRoom(room.room_id)}
-                              disabled={rooms.length <= 1}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={rooms.length <= 1 ? '최소 1개 이상 유지해야 합니다' : '삭제'}
-                            >
-                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" clipRule="evenodd"/>
-                              </svg>
-                            </button>
-                          </div>
+                          {/* 삭제 확인 인라인 UI */}
+                          {pendingDeleteId === room.room_id ? (
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className="text-xs text-red-600 font-medium">삭제할까요?</span>
+                              <button
+                                onClick={() => handleDeleteRoom(room.room_id)}
+                                disabled={roomLoading}
+                                className="px-2 py-0.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-sm transition-colors disabled:opacity-50"
+                              >확인</button>
+                              <button
+                                onClick={() => setPendingDeleteId(null)}
+                                className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-sm transition-colors"
+                              >취소</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <button
+                                onClick={() => { setEditingRoomId(room.room_id); setEditingName(room.room_name); setEditingColor(room.color || '#6d28d9'); }}
+                                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-sm transition-colors"
+                                title="수정"
+                              >
+                                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                                  <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleToggleActive(room)}
+                                className={`p-1.5 rounded-sm transition-colors ${room.is_active ? 'text-green-500 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-200'}`}
+                                title={room.is_active ? '비활성화' : '활성화'}
+                              >
+                                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                                  {room.is_active
+                                    ? <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 1.854 7.146a.5.5 0 1 0-.708.708l3.5 3.5a.5.5 0 0 0 .708 0l7-7z"/>
+                                    : <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                                  }
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteId(room.room_id)}
+                                disabled={rooms.length <= 1}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={rooms.length <= 1 ? '최소 1개 이상 유지해야 합니다' : '삭제'}
+                              >
+                                <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                  <path fillRule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" clipRule="evenodd"/>
+                                </svg>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
