@@ -74,6 +74,8 @@ interface Props {
   reservations: Reservation[];
   roomName?: string;
   headerActions?: React.ReactNode;
+  onPrevDay: () => void;
+  onNextDay: () => void;
   onReserveSlot: (hour: number) => void;
   onEditReservation: (reservation: Reservation) => void;
   onCancelReservation: (id: string) => void;
@@ -84,6 +86,8 @@ export default function TimeSlotTable({
   reservations,
   roomName = '회의실 현황',
   headerActions,
+  onPrevDay,
+  onNextDay,
   onReserveSlot,
   onEditReservation,
   onCancelReservation,
@@ -93,12 +97,27 @@ export default function TimeSlotTable({
   const timedRes = dayReservations.filter(r => !r.all_day && r.status === 'confirmed');
   const hasAllDay = allDayRes.length > 0;
 
+  // 주단위와 동일한 포맷: "04.10 (목)"
+  const dayLabel = (() => {
+    const d = new Date(selectedDate.replace(/-/g, '/'));
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const names = ['일', '월', '화', '수', '목', '금', '토'];
+    return `${mm}.${dd} (${names[d.getDay()]})`;
+  })();
+
   return (
     <div className="bg-white overflow-hidden h-full flex flex-col">
-      {/* Header */}
+      {/* Header — 주단위와 동일한 구조 */}
       <div className="pb-2 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-gray-900">{formatDateDisplay(selectedDate)}</p>
+        <div className="flex items-center gap-1">
+          <button onClick={onPrevDay} className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-sm transition-colors flex-shrink-0">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M9.78 12.78a.75.75 0 0 1-1.06 0L4.47 8.53a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 1.06L6.06 8l3.72 3.72a.75.75 0 0 1 0 1.06z" clipRule="evenodd" /></svg>
+          </button>
+          <span className="text-sm font-semibold text-gray-900 inline-block w-28 text-center">{dayLabel}</span>
+          <button onClick={onNextDay} className="p-0.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-sm transition-colors flex-shrink-0">
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06z" clipRule="evenodd" /></svg>
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden sm:inline text-xs text-gray-400">1시간 단위 표시 · 30분 단위 예약</span>

@@ -127,7 +127,13 @@ export default function Home() {
     [openCreate]
   );
 
-  // ── Week navigation ────────────────────────────────────────────────────────
+  // ── Day / Week navigation ─────────────────────────────────────────────────
+  const shiftDay = useCallback((delta: number) => {
+    const d = new Date(selectedDate.replace(/-/g, '/'));
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(formatDate(d));
+  }, [selectedDate]);
+
   const shiftWeek = useCallback((delta: number) => {
     const d = new Date(selectedDate.replace(/-/g, '/'));
     d.setDate(d.getDate() + delta * 7);
@@ -225,40 +231,41 @@ export default function Home() {
 
             {/* ── Day / Week table ────────────────────────────────────── */}
             <div className="flex-1 min-h-0">
-              {view === 'day' ? (
-                <TimeSlotTable
-                  selectedDate={selectedDate}
-                  reservations={roomReservations}
-                  roomName={selectedRoom?.room_name}
-                  headerActions={
-                    <div className="flex bg-gray-100 rounded-sm p-0.5">
-                      <button onClick={() => setView('day')} className="px-3 py-1 text-xs font-medium rounded-sm bg-white text-gray-900 shadow-sm transition-colors">일단위</button>
-                      <button onClick={() => setView('week')} className="px-3 py-1 text-xs font-medium rounded-sm text-gray-500 hover:text-gray-700 transition-colors">주단위</button>
-                    </div>
-                  }
-                  onReserveSlot={handleSlotReserve}
-                  onEditReservation={openEdit}
-                  onCancelReservation={handleCancel}
-                />
-              ) : (
-                <WeekSlotTable
-                  weekDates={weekDates}
-                  reservations={roomReservations}
-                  roomName={selectedRoom?.room_name}
-                  workDays={settings.workDays}
-                  onPrevWeek={() => shiftWeek(-1)}
-                  onNextWeek={() => shiftWeek(1)}
-                  headerActions={
-                    <div className="flex bg-gray-100 rounded-sm p-0.5">
-                      <button onClick={() => setView('day')} className="px-3 py-1 text-xs font-medium rounded-sm text-gray-500 hover:text-gray-700 transition-colors">일단위</button>
-                      <button onClick={() => setView('week')} className="px-3 py-1 text-xs font-medium rounded-sm bg-white text-gray-900 shadow-sm transition-colors">주단위</button>
-                    </div>
-                  }
-                  onReserveSlot={handleWeekSlotReserve}
-                  onEditReservation={openEdit}
-                  onCancelReservation={handleCancel}
-                />
-              )}
+              {/* 공통 뷰 스위처 */}
+            {(() => {
+                const viewSwitcher = (
+                  <div className="flex bg-gray-100 rounded-sm p-0.5">
+                    <button onClick={() => setView('day')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${view === 'day' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>일단위</button>
+                    <button onClick={() => setView('week')} className={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${view === 'week' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>주단위</button>
+                  </div>
+                );
+                return view === 'day' ? (
+                  <TimeSlotTable
+                    selectedDate={selectedDate}
+                    reservations={roomReservations}
+                    roomName={selectedRoom?.room_name}
+                    headerActions={viewSwitcher}
+                    onPrevDay={() => shiftDay(-1)}
+                    onNextDay={() => shiftDay(1)}
+                    onReserveSlot={handleSlotReserve}
+                    onEditReservation={openEdit}
+                    onCancelReservation={handleCancel}
+                  />
+                ) : (
+                  <WeekSlotTable
+                    weekDates={weekDates}
+                    reservations={roomReservations}
+                    roomName={selectedRoom?.room_name}
+                    workDays={settings.workDays}
+                    onPrevWeek={() => shiftWeek(-1)}
+                    onNextWeek={() => shiftWeek(1)}
+                    headerActions={viewSwitcher}
+                    onReserveSlot={handleWeekSlotReserve}
+                    onEditReservation={openEdit}
+                    onCancelReservation={handleCancel}
+                  />
+                );
+              })()}
             </div>
           </section>
 
