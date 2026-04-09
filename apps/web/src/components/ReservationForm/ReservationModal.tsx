@@ -549,7 +549,8 @@ export default function ReservationModal(props: Props) {
               const targetEnd = minutesToTime(
                 Math.min(timeToMinutes(form.start_time) + minutes, 22 * 60)
               );
-              const isActive = !form.all_day && TIME_OPTIONS.includes(targetEnd) && form.end_time === targetEnd;
+              const isActive = !form.all_day &&
+                (timeToMinutes(form.end_time) - timeToMinutes(form.start_time)) === minutes;
               return (
                 <button
                   key={minutes}
