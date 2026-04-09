@@ -151,7 +151,7 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center gap-6" style={{ paddingTop: '40vh' }}>
         {/* 귀여운 캘린더 로딩 아이콘 */}
         <div className="relative">
           {/* 캘린더 본체 */}
