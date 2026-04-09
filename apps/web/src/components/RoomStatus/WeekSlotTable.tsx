@@ -162,8 +162,8 @@ export default function WeekSlotTable({
       const scale    = Math.min(Math.sqrt(absDx / SWIPE_THRESHOLD), 1.0);
       const colorT   = Math.min(absDx / SWIPE_THRESHOLD, 1);
       const overT    = Math.max(absDx - SWIPE_THRESHOLD, 0) / SWIPE_THRESHOLD;
-      const nudge    = Math.min(overT * 8, 5);
-      const nudgeX   = isLeft ? -nudge : nudge;
+      const nudge    = Math.min(overT * 10, 8);
+      const nudgeX   = isLeft ? nudge : -nudge;
       const active   = isLeft ? indLeftRef.current  : indRightRef.current;
       const inactive = isLeft ? indRightRef.current : indLeftRef.current;
 

@@ -127,8 +127,8 @@ export default function TimeSlotTable({
       const scale        = Math.min(Math.sqrt(absDx / SWIPE_THRESHOLD), 1.0);
       const colorT       = Math.min(absDx / SWIPE_THRESHOLD, 1);          // 0→1 색상 보간
       const overT        = Math.max(absDx - SWIPE_THRESHOLD, 0) / SWIPE_THRESHOLD;
-      const nudge        = Math.min(overT * 8, 5);                         // 최대 5px 뒤로
-      const nudgeX       = isLeft ? -nudge : nudge;
+      const nudge        = Math.min(overT * 10, 8);                        // 최대 8px 앞으로
+      const nudgeX       = isLeft ? nudge : -nudge;
       const active       = isLeft ? indLeftRef.current  : indRightRef.current;
       const inactive     = isLeft ? indRightRef.current : indLeftRef.current;
 
