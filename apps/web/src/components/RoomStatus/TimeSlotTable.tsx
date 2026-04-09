@@ -1,7 +1,10 @@
 'use client';
 
+import { useRef, useEffect } from 'react';
 import { Reservation } from '@/lib/types';
 import { getReservationsForDate, timeToMinutes, formatDateDisplay } from '@/lib/reservationLogic';
+
+const SWIPE_THRESHOLD = 50; // px — 이 이상 수평 스와이프 시 날짜 이동
 
 const START_HOUR = 8;
 const END_HOUR = 22;
@@ -97,6 +100,30 @@ export default function TimeSlotTable({
   const timedRes = dayReservations.filter(r => !r.all_day && r.status === 'confirmed');
   const hasAllDay = allDayRes.length > 0;
 
+  // 수평 스와이프 → 전날/다음날
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let startX = 0, startY = 0;
+    function onStart(e: TouchEvent) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }
+    function onEnd(e: TouchEvent) {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+      if (dx > 0) onPrevDay(); else onNextDay();
+    }
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchend', onEnd);
+    };
+  }, [onPrevDay, onNextDay]);
+
   // 주단위와 동일한 포맷: "04.10 (목)"
   const dayLabel = (() => {
     const d = new Date(selectedDate.replace(/-/g, '/'));
@@ -107,7 +134,7 @@ export default function TimeSlotTable({
   })();
 
   return (
-    <div className="bg-white overflow-hidden h-full flex flex-col">
+    <div ref={containerRef} className="bg-white overflow-hidden h-full flex flex-col">
       {/* Header — 주단위와 동일한 구조 */}
       <div className="pb-2 border-b border-gray-100 flex items-center justify-between">
         <div className="flex items-center gap-1">

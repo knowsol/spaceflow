@@ -1,6 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
+
+const SWIPE_THRESHOLD = 50; // px
 import { Reservation } from '@/lib/types';
 import { getReservationsForDate, timeToMinutes, formatDate, parseDate } from '@/lib/reservationLogic';
 
@@ -135,6 +137,35 @@ export default function WeekSlotTable({
   const gridCols = `48px repeat(${colCount}, minmax(80px, 1fr))`;
   const minW = 48 + colCount * 80;
 
+  // 스크롤 끝에서 추가 스와이프 → 이전주/다음주
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let startX = 0, startY = 0, startScrollLeft = 0;
+    function onStart(e: TouchEvent) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startScrollLeft = el!.scrollLeft;
+    }
+    function onEnd(e: TouchEvent) {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+      const maxScroll = el!.scrollWidth - el!.clientWidth;
+      const atLeft  = startScrollLeft <= 0 && el!.scrollLeft <= 0;
+      const atRight = startScrollLeft >= maxScroll - 2 && el!.scrollLeft >= maxScroll - 2;
+      if (dx > 0 && atLeft)  onPrevWeek();
+      if (dx < 0 && atRight) onNextWeek();
+    }
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchend',   onEnd,   { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchend',   onEnd);
+    };
+  }, [onPrevWeek, onNextWeek]);
+
   return (
     <div className="bg-white overflow-hidden h-full flex flex-col">
       {/* Navigation header */}
@@ -157,7 +188,7 @@ export default function WeekSlotTable({
       </div>
 
       {/* ── Single scroll container (both x and y) ── */}
-      <div className="overflow-auto flex-1 min-h-0">
+      <div ref={scrollRef} className="overflow-auto flex-1 min-h-0">
         <div style={{ minWidth: `${minW}px` }}>
 
           {/* ── Sticky day header row ── */}
