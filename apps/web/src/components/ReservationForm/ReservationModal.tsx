@@ -146,6 +146,7 @@ export default function ReservationModal(props: Props) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [conflicts, setConflicts] = useState<{ dates: string[]; items: Reservation[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [editScope, setEditScope] = useState<EditScope>('single');
 
   // 저장된 이름 초기 세팅 (create 모드이고 아직 입력 안 했을 때만)
@@ -167,6 +168,7 @@ export default function ReservationModal(props: Props) {
     (partial: Partial<ReservationFormData>) => {
       setForm(prev => ({ ...prev, ...partial }));
       setConflicts(null);
+      setSubmitError(null);
     },
     []
   );
@@ -214,96 +216,101 @@ export default function ReservationModal(props: Props) {
   const handleSubmit = async () => {
     if (!validate()) return;
     setSubmitting(true);
+    setSubmitError(null);
 
-    // 이름 저장 처리
-    if (isSaveEnabled) {
-      persistName(form.reserver_name);
-    } else {
-      clearName();
-    }
+    try {
+      // 이름 저장 처리
+      if (isSaveEnabled) {
+        persistName(form.reserver_name);
+      } else {
+        clearName();
+      }
 
-    // ── Edit mode ──────────────────────────────────────────────────────────
-    if (isEdit && editTarget && props.onUpdate) {
-      // Conflict check (exclude self + same repeat group)
-      const result = checkConflicts(
-        {
-          dates: [form.date],
-          start_time: form.start_time,
-          end_time: form.end_time,
-          all_day: form.all_day,
-          room_id: roomId,
-        },
-        reservations,
-        editTarget.reservation_id,
-        editTarget.repeat_group_id ?? undefined
-      );
-      if (result.hasConflict) {
-        setConflicts({ dates: result.conflictDates, items: result.conflictReservations });
+      // ── Edit mode ──────────────────────────────────────────────────────────
+      if (isEdit && editTarget && props.onUpdate) {
+        // Conflict check (exclude self + same repeat group)
+        const result = checkConflicts(
+          {
+            dates: [form.date],
+            start_time: form.start_time,
+            end_time: form.end_time,
+            all_day: form.all_day,
+            room_id: roomId,
+          },
+          reservations,
+          editTarget.reservation_id,
+          editTarget.repeat_group_id ?? undefined
+        );
+        if (result.hasConflict) {
+          setConflicts({ dates: result.conflictDates, items: result.conflictReservations });
+          setSubmitting(false);
+          return;
+        }
+
+        await props.onUpdate(
+          editTarget.reservation_id,
+          {
+            title: form.title.trim(),
+            reserver_name: form.reserver_name.trim(),
+            purpose: form.purpose.trim(),
+            date: form.date,
+            start_time: form.all_day ? '08:00' : form.start_time,
+            end_time: form.all_day ? '22:00' : form.end_time,
+            all_day: form.all_day,
+            repeat_type: form.repeat_type,
+            repeat_interval: form.repeat_interval,
+            repeat_days: form.repeat_days,
+            repeat_start_date: form.repeat_type !== 'none' ? form.repeat_start_date : null,
+            repeat_end_date: form.repeat_type !== 'none' ? form.repeat_end_date : null,
+          },
+          form.reserver_name.trim(),
+          editScope
+        );
         setSubmitting(false);
         return;
       }
 
-      await props.onUpdate(
-        editTarget.reservation_id,
-        {
-          title: form.title.trim(),
-          reserver_name: form.reserver_name.trim(),
-          purpose: form.purpose.trim(),
-          date: form.date,
-          start_time: form.all_day ? '08:00' : form.start_time,
-          end_time: form.all_day ? '22:00' : form.end_time,
-          all_day: form.all_day,
-          repeat_type: form.repeat_type,
-          repeat_interval: form.repeat_interval,
-          repeat_days: form.repeat_days,
-          repeat_start_date: form.repeat_type !== 'none' ? form.repeat_start_date : null,
-          repeat_end_date: form.repeat_type !== 'none' ? form.repeat_end_date : null,
-        },
-        form.reserver_name.trim(),
-        editScope
-      );
+      // ── Create mode ────────────────────────────────────────────────────────
+      if (!isEdit && props.onSubmit) {
+        const dates = getDates();
+        const result = checkConflicts(
+          { dates, start_time: form.start_time, end_time: form.end_time, all_day: form.all_day, room_id: roomId },
+          reservations
+        );
+        if (result.hasConflict) {
+          setConflicts({ dates: result.conflictDates, items: result.conflictReservations });
+          setSubmitting(false);
+          return;
+        }
+
+        const groupId = form.repeat_type !== 'none' ? `group-${Date.now()}` : null;
+        const newItems: Omit<Reservation, 'reservation_id' | 'created_at' | 'updated_at'>[] = dates.map(
+          date => ({
+            room_id: roomId || room?.room_id || 'room-1',
+            title: form.title.trim(),
+            reserver_name: form.reserver_name.trim(),
+            purpose: form.purpose.trim(),
+            date,
+            start_time: form.all_day ? '08:00' : form.start_time,
+            end_time: form.all_day ? '22:00' : form.end_time,
+            all_day: form.all_day,
+            repeat_type: form.repeat_type,
+            repeat_interval: form.repeat_interval,
+            repeat_days: form.repeat_days,
+            repeat_start_date: form.repeat_type !== 'none' ? form.repeat_start_date : null,
+            repeat_end_date: form.repeat_type !== 'none' ? form.repeat_end_date : null,
+            repeat_group_id: groupId,
+            status: 'confirmed' as const,
+          })
+        );
+
+        await props.onSubmit(newItems, form.reserver_name.trim());
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '저장 중 오류가 발생했습니다.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    // ── Create mode ────────────────────────────────────────────────────────
-    if (!isEdit && props.onSubmit) {
-      const dates = getDates();
-      const result = checkConflicts(
-        { dates, start_time: form.start_time, end_time: form.end_time, all_day: form.all_day, room_id: roomId },
-        reservations
-      );
-      if (result.hasConflict) {
-        setConflicts({ dates: result.conflictDates, items: result.conflictReservations });
-        setSubmitting(false);
-        return;
-      }
-
-      const groupId = form.repeat_type !== 'none' ? `group-${Date.now()}` : null;
-      const newItems: Omit<Reservation, 'reservation_id' | 'created_at' | 'updated_at'>[] = dates.map(
-        date => ({
-          room_id: roomId || room?.room_id || 'room-1',
-          title: form.title.trim(),
-          reserver_name: form.reserver_name.trim(),
-          purpose: form.purpose.trim(),
-          date,
-          start_time: form.all_day ? '08:00' : form.start_time,
-          end_time: form.all_day ? '22:00' : form.end_time,
-          all_day: form.all_day,
-          repeat_type: form.repeat_type,
-          repeat_interval: form.repeat_interval,
-          repeat_days: form.repeat_days,
-          repeat_start_date: form.repeat_type !== 'none' ? form.repeat_start_date : null,
-          repeat_end_date: form.repeat_type !== 'none' ? form.repeat_end_date : null,
-          repeat_group_id: groupId,
-          status: 'confirmed' as const,
-        })
-      );
-
-      await props.onSubmit(newItems, form.reserver_name.trim());
-    }
-
-    setSubmitting(false);
   };
 
   const repeatDates = form.repeat_type !== 'none' && form.repeat_end_date ? getDates() : null;
@@ -570,6 +577,14 @@ export default function ReservationModal(props: Props) {
           )}
 
           {/* Repeat summary — RepeatOptions 내부에 카운트 표시되므로 제거 */}
+
+          {/* Submit error */}
+          {submitError && (
+            <div className="bg-red-50 border border-red-200 rounded-sm p-4">
+              <p className="text-sm font-semibold text-red-700 mb-1">⚠ 저장 실패</p>
+              <p className="text-xs text-red-600 break-all">{submitError}</p>
+            </div>
+          )}
 
           {/* Conflict warning */}
           {conflicts && conflicts.dates.length > 0 && (
