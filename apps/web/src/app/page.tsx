@@ -185,7 +185,6 @@ export default function Home() {
             ))}
           </div>
         </div>
-        <p className="text-sm text-gray-400 font-medium tracking-wide">불러오는 중<span style={{ animation: 'ellipsis 1.4s steps(4, end) infinite', display: 'inline-block', overflow: 'hidden', verticalAlign: 'bottom', width: '1.5em' }}>...</span></p>
 
         <style>{`
           @keyframes pulse {
