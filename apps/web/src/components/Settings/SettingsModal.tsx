@@ -39,7 +39,7 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
           className="w-6 h-6 rounded-full transition-transform hover:scale-110 flex-shrink-0"
           style={{
             backgroundColor: c,
-            // 선택: 흰 갭 + 동일 색 외곽 링 → 라이트/다크 모드 모두 가시
+            colorScheme: 'light',  // forced dark mode 색상 변환 차단
             boxShadow: value === c
               ? `0 0 0 2px #fff, 0 0 0 4px ${c}`
               : '0 0 0 1px rgba(0,0,0,0.15)',
@@ -473,6 +473,7 @@ export default function SettingsModal({
                             className="w-4 h-4 rounded-full flex-shrink-0"
                             style={{
                               backgroundColor: room.color || '#6d28d9',
+                              colorScheme: 'light',  // forced dark mode 색상 변환 차단
                               boxShadow: '0 0 0 1px rgba(0,0,0,0.2)',
                             }}
                           />

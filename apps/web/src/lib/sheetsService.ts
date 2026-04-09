@@ -152,11 +152,35 @@ export async function updateRoom(sheetId: string, id: string, data: Partial<Omit
 }
 
 export async function deleteRoom(sheetId: string, id: string): Promise<void> {
+  const { sheets } = getSheets(sheetId);
+
+  // 탭의 내부 숫자 ID 조회 (deleteDimension에 필요)
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
+  const tabMeta = (meta.data.sheets ?? []).find(s => s.properties?.title === SHEET_NAMES.rooms);
+  const tabSheetId = tabMeta?.properties?.sheetId;
+  if (tabSheetId == null) throw new Error(`"${SHEET_NAMES.rooms}" 탭을 찾을 수 없습니다.`);
+
+  // 삭제할 행 인덱스 조회
   const rows = await readSheet(sheetId, SHEET_NAMES.rooms);
   const idx = rows.findIndex(r => r[0] === id);
   if (idx < 0) return;
-  const room = deserializeRoom(rows[idx]);
-  await updateRow(sheetId, SHEET_NAMES.rooms, idx, serializeRoom({ ...room, is_active: false }));
+
+  // 행 완전 삭제 (헤더 1행 + 데이터 idx행 = 시트 기준 idx+1, 0-based)
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: sheetId,
+    requestBody: {
+      requests: [{
+        deleteDimension: {
+          range: {
+            sheetId: tabSheetId,
+            dimension: 'ROWS',
+            startIndex: idx + 1,  // +1 for header row
+            endIndex: idx + 2,
+          },
+        },
+      }],
+    },
+  });
 }
 
 // ─── Reservations ──────────────────────────────────────────────────────────────
