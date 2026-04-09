@@ -144,8 +144,8 @@ export default function WeekSlotTable({
   const indRightRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (!scrollRef.current) return;
+    const el: HTMLDivElement = scrollRef.current;
     let startX = 0, startY = 0, startScrollLeft = 0, tracking = false;
 
     function hideAll(instant = true) {
@@ -183,7 +183,6 @@ export default function WeekSlotTable({
     }
 
     function onStart(e: TouchEvent) {
-      if (!el) return;
       const rect  = el.getBoundingClientRect();
       const touch = e.touches[0];
       if (touch.clientX < rect.left || touch.clientX > rect.right ||

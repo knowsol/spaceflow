@@ -108,8 +108,8 @@ export default function TimeSlotTable({
   const indRightRef   = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const scrollEl = scrollAreaRef.current;
-    if (!scrollEl) return;
+    if (!scrollAreaRef.current) return;
+    const scrollEl: HTMLDivElement = scrollAreaRef.current;
     let startX = 0, startY = 0, tracking = false;
 
     function hideAll(instant = true) {
@@ -149,7 +149,6 @@ export default function TimeSlotTable({
 
     // touchstart: 스크롤 영역 내 터치만 추적
     function onStart(e: TouchEvent) {
-      if (!scrollEl) return;
       const rect  = scrollEl.getBoundingClientRect();
       const touch = e.touches[0];
       if (touch.clientX < rect.left || touch.clientX > rect.right ||
