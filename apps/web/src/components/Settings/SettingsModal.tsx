@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AppSettings, LayoutWidth, extractSheetId } from '@/lib/settings';
+import { AppSettings, LayoutWidth, extractSheetId, PRESET_SHEET_ID } from '@/lib/settings';
 import { Room } from '@/lib/types';
 import RightPanel from '@/components/RightPanel';
 
@@ -536,21 +536,37 @@ export default function SettingsModal({
             {/* ── 데이터 연동 ─────────────────────────────────────────────── */}
             {tab === 'data' && (
               <div className="space-y-5">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-sm">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Google Sheets 연동 사용</p>
-                    <p className="text-xs text-gray-400 mt-0.5">활성화 시 스프레드시트에서 데이터를 불러옵니다</p>
-                  </div>
-                  <button
-                    onClick={() => setSheetField('enabled', !sheet.enabled)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${sheet.enabled ? 'bg-[var(--accent)]' : 'bg-gray-300'}`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${sheet.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
-                </div>
 
-                <div className={sheet.enabled ? '' : 'opacity-50 pointer-events-none'}>
+                {/* 배포 환경 고정 Sheet 안내 */}
+                {PRESET_SHEET_ID ? (
+                  <div className="flex items-start gap-3 p-4 bg-[var(--accent-lighter)] border border-[var(--accent-border)] rounded-sm">
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-[var(--accent)] flex-shrink-0 mt-0.5">
+                      <path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1zm3 8V5.5a3 3 0 1 0-6 0V9h6z" clipRule="evenodd" />
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-[var(--accent)]">배포 환경으로 고정됨</p>
+                      <p className="text-xs text-gray-500 mt-0.5">모든 사용자가 동일한 스프레드시트를 공유합니다.</p>
+                      <p className="text-xs font-mono text-gray-400 mt-1 truncate">{PRESET_SHEET_ID}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-sm">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Google Sheets 연동 사용</p>
+                      <p className="text-xs text-gray-400 mt-0.5">활성화 시 스프레드시트에서 데이터를 불러옵니다</p>
+                    </div>
+                    <button
+                      onClick={() => setSheetField('enabled', !sheet.enabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${sheet.enabled ? 'bg-[var(--accent)]' : 'bg-gray-300'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${sheet.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                )}
+
+                <div className={(!PRESET_SHEET_ID && !sheet.enabled) ? 'opacity-50 pointer-events-none' : ''}>
                   <div className="space-y-4">
+                    {!PRESET_SHEET_ID && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1.5">Google Sheet URL 또는 ID</label>
                       <input
@@ -562,6 +578,7 @@ export default function SettingsModal({
                       />
                       {sheet.sheetId && <p className="text-xs text-gray-500 mt-1">Sheet ID: <span className="font-mono">{sheet.sheetId}</span></p>}
                     </div>
+                    )}
                     {/* 연결 테스트 + 시트 초기화 */}
                     <div className="flex gap-2">
                       <button
