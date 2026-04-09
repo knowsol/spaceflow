@@ -46,6 +46,20 @@ export function useReservations() {
     const repo = getRepository();
     (async () => {
       try {
+        // Sheets 모드인 경우 탭 자동 초기화 (없는 탭만 생성, 있으면 무시)
+        const s = loadSettings();
+        if (s.sheet.enabled && s.sheet.sheetId) {
+          try {
+            await fetch('/api/sheets/init', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sheetId: s.sheet.sheetId }),
+            });
+          } catch {
+            // init 실패는 non-fatal — 이미 초기화된 경우 무시
+          }
+        }
+
         let [res, rm, hist] = await Promise.all([
           repo.getReservations(),
           repo.getRooms(),

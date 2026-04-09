@@ -62,11 +62,11 @@ function lastDayOfCurrentMonth(): string {
   return formatDate(last);
 }
 
-/** 현재 시각 이후 첫 번째 선택 가능한 시간 슬롯 반환 */
-function nextAvailableTime(): string {
+/** 현재 시각 이후 첫 번째 선택 가능한 시간 슬롯 반환. 22시 이후면 undefined 반환 */
+function nextAvailableTime(): string | undefined {
   const now = new Date();
   const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  return TIME_OPTIONS.find(t => t > hhmm) ?? TIME_OPTIONS[TIME_OPTIONS.length - 2] ?? '09:00';
+  return TIME_OPTIONS.find(t => t > hhmm);
 }
 
 const DURATION_PRESETS = [
@@ -100,20 +100,32 @@ function reservationToForm(r: Reservation): ReservationFormData {
 }
 
 function defaultForm(init?: CreateMode['initialData']): ReservationFormData {
-  const defaultStart = init?.start_time ?? nextAvailableTime();
+  const availableSlot = nextAvailableTime();
+  const isPastLastSlot = !availableSlot; // 22:00 이후 슬롯 없음
+
+  // 22시 이후 → 다음 날 09:00 기본값
+  let defaultDate = init?.date ?? TODAY;
+  let defaultStart = init?.start_time ?? availableSlot ?? '09:00';
+  if (!init?.date && isPastLastSlot) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    defaultDate = formatDate(tomorrow);
+    defaultStart = init?.start_time ?? '09:00';
+  }
+
   const defaultEnd = init?.end_time ?? (TIME_OPTIONS.find(t => t > defaultStart) ?? '22:00');
   return {
     title: '',
     reserver_name: '',
     purpose: '',
-    date: init?.date ?? TODAY,
+    date: defaultDate,
     start_time: defaultStart,
     end_time: defaultEnd,
     all_day: false,
     repeat_type: 'none',
     repeat_interval: 1,
     repeat_days: [],
-    repeat_start_date: init?.date ?? TODAY,
+    repeat_start_date: defaultDate,
     repeat_end_date: lastDayOfCurrentMonth(),
   };
 }
