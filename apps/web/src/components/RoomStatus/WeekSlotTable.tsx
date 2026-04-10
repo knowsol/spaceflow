@@ -60,7 +60,7 @@ function ResBlock({ reservation: r, onEdit, onCancel }: BlockProps) {
       {/* Cancel button on hover */}
       <button
         onClick={e => { e.stopPropagation(); onCancel(r.reservation_id); }}
-        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white/80 text-gray-500 text-[11px] hidden group-hover/res:flex items-center justify-center hover:bg-red-100 hover:text-red-600 z-20 leading-none"
+        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white/80 text-gray-500 text-[11px] flex md:hidden md:group-hover/res:flex items-center justify-center hover:bg-red-100 hover:text-red-600 z-20 leading-none"
       >
         ×
       </button>
