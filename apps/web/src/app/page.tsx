@@ -294,6 +294,10 @@ export default function Home() {
               defaultRoomId={defaultRoomId}
               onSetDefault={handleSetDefaultRoom}
             />
+
+            <div className="mt-auto pt-4 text-center">
+              <p className="text-[10px] text-gray-300">© {new Date().getFullYear()} KWS. All rights reserved.</p>
+            </div>
           </aside>
 
           {/* ── 모바일 플로팅 예약하기 버튼 ─────────────────────────────── */}
